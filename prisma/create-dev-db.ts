@@ -24,6 +24,7 @@ async function main() {
       "name" TEXT NOT NULL,
       "description" TEXT NOT NULL,
       "systemdServiceName" TEXT NOT NULL,
+      "execStart" TEXT NOT NULL DEFAULT '',
       "status" TEXT NOT NULL DEFAULT 'UNKNOWN',
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL
@@ -47,6 +48,16 @@ async function main() {
   await prisma.$executeRawUnsafe(`
     CREATE UNIQUE INDEX IF NOT EXISTS "GameServer_systemdServiceName_key" ON "GameServer"("systemdServiceName");
   `);
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "GameServer" ADD COLUMN "execStart" TEXT NOT NULL DEFAULT '';
+    `);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("duplicate column name")) {
+      throw error;
+    }
+  }
 }
 
 main()

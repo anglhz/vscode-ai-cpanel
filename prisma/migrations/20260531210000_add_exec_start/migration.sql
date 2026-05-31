@@ -1,0 +1,1 @@
+ALTER TABLE "GameServer" ADD COLUMN "execStart" TEXT NOT NULL DEFAULT '';

@@ -10,6 +10,9 @@ const serverSchema = z.object({
   name: z.string().min(2),
   description: z.string().min(2),
   systemdServiceName: z.string().regex(/^[a-zA-Z0-9_.@:-]+\.service$/),
+  execStart: z.string().min(1).max(1000).refine((value) => !/[\r\n]/.test(value), {
+    message: "ExecStart must be a single line.",
+  }),
   status: z.enum(serverStatuses).optional(),
 });
 
@@ -44,6 +47,7 @@ export async function POST(request: Request) {
       name: parsed.data.name,
       description: parsed.data.description,
       systemdServiceName: parsed.data.systemdServiceName,
+      execStart: parsed.data.execStart,
       status: parsed.data.status ?? "UNKNOWN",
     },
     include: { assignedUsers: true },

@@ -23,6 +23,7 @@ model GameServer {
   name               String
   description        String
   systemdServiceName String             @unique
+  execStart          String             @default("")
   status             String             @default("UNKNOWN")
   assignedUsers      UserServerAccess[]
   createdAt          DateTime           @default(now())

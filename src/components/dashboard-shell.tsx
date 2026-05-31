@@ -24,6 +24,7 @@ type GameServerDto = {
   description: string;
   status: ServerStatus;
   systemdServiceName?: string;
+  execStart: string;
   assignedUserIds: string[];
 };
 
@@ -317,11 +318,12 @@ function ServerCard({
           {server.status}
         </span>
       </div>
-      {isAdmin && server.systemdServiceName ? (
-        <p className="mt-4 rounded-md bg-neutral-950 px-3 py-2 font-mono text-xs text-neutral-400">
-          {server.systemdServiceName}
-        </p>
-      ) : null}
+      <ServerConfigEditor
+        server={server}
+        isAdmin={isAdmin}
+        reload={reload}
+        setMessage={setMessage}
+      />
       <div className="mt-5 border-t border-white/10 pt-4">
         <div className="grid grid-cols-3 gap-2">
           <ActionButton onClick={() => runAction("start")} disabled={Boolean(busy)} icon={CirclePower}>
@@ -344,6 +346,83 @@ function ServerCard({
         </ActionButton>
       </div>
     </article>
+  );
+}
+
+function ServerConfigEditor({
+  server,
+  isAdmin,
+  reload,
+  setMessage,
+}: {
+  server: GameServerDto;
+  isAdmin: boolean;
+  reload: () => Promise<void>;
+  setMessage: (message: string) => void;
+}) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const payload = isAdmin
+      ? {
+          name: formData.get("name"),
+          description: formData.get("description"),
+          systemdServiceName: formData.get("systemdServiceName"),
+          execStart: formData.get("execStart"),
+        }
+      : {
+          execStart: formData.get("execStart"),
+        };
+
+    const response = await fetch(`/api/servers/${server.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      setMessage("Server startup line updated.");
+      await reload();
+    } else {
+      setMessage("Could not update server startup line.");
+    }
+  }
+
+  return (
+    <details className="mt-4 rounded-md border border-white/10 bg-neutral-950">
+      <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-neutral-300">
+        Startup configuration
+      </summary>
+      <form onSubmit={submit} className="space-y-3 border-t border-white/10 p-3">
+        {isAdmin ? (
+          <>
+            <Input name="name" defaultValue={server.name} placeholder="Server name" />
+            <Input name="description" defaultValue={server.description} placeholder="Description" />
+            <Input
+              name="systemdServiceName"
+              defaultValue={server.systemdServiceName}
+              placeholder="codbase-public.service"
+            />
+          </>
+        ) : null}
+        <label className="block">
+          <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+            ExecStart
+          </span>
+          <textarea
+            name="execStart"
+            required
+            rows={4}
+            defaultValue={server.execStart}
+            className="w-full resize-y rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
+            placeholder="/opt/game-servers/codbase-public/cod_lnxded +set dedicated 2 +set net_port 28960 +exec server.cfg +map_rotate"
+          />
+        </label>
+        <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+          Save startup line
+        </button>
+      </form>
+    </details>
   );
 }
 
@@ -390,6 +469,7 @@ function ServerForm({
         name: formData.get("name"),
         description: formData.get("description"),
         systemdServiceName: formData.get("systemdServiceName"),
+        execStart: formData.get("execStart"),
       }),
     });
 
@@ -403,14 +483,21 @@ function ServerForm({
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 md:grid-cols-[1fr_1fr_1fr_auto]">
+    <form onSubmit={submit} className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 xl:grid-cols-[1fr_1fr_1fr_auto]">
       <Input name="name" placeholder="Server name" />
       <Input name="description" placeholder="Description" />
       <Input name="systemdServiceName" placeholder="codbase-public.service" />
-      <button className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+      <button className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200 xl:row-span-2 xl:h-full">
         <Plus className="h-4 w-4" />
         Add
       </button>
+      <textarea
+        name="execStart"
+        required
+        rows={3}
+        className="rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4 xl:col-span-3"
+        placeholder="/opt/game-servers/codbase-public/cod_lnxded +set dedicated 2 +set net_port 28960 +exec server.cfg +map_rotate"
+      />
     </form>
   );
 }
