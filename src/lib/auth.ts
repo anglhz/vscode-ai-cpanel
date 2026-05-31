@@ -23,6 +23,14 @@ function getSessionSecret() {
   return encoder.encode(secret);
 }
 
+function shouldUseSecureCookie() {
+  if (process.env.SESSION_COOKIE_SECURE) {
+    return process.env.SESSION_COOKIE_SECURE === "true";
+  }
+
+  return process.env.NODE_ENV === "production";
+}
+
 export async function createSession(user: SessionUser) {
   const token = await new SignJWT(user)
     .setProtectedHeader({ alg: "HS256" })
@@ -33,7 +41,7 @@ export async function createSession(user: SessionUser) {
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureCookie(),
     path: "/",
     maxAge: 60 * 60 * 8,
   });
