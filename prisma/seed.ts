@@ -1,33 +1,31 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { getExecStartBase } from "../src/lib/exec-start";
 
 const prisma = new PrismaClient();
 
 const callOfDutyServers = [
   {
     name: "CoDBase Public",
-    description: "Main public Call of Duty 1 server for open community play.",
+    description: "Main public server for open community play.",
     systemdServiceName: "codbase-public.service",
-    execStart:
-      "/opt/game-servers/codbase-public/cod_lnxded +set dedicated 2 +set net_port 28960 +exec server.cfg +map_rotate",
+    execStart: getExecStartBase("codbase-public.service") ?? "",
   },
   ...Array.from({ length: 10 }, (_, index) => {
     const number = index + 1;
-    const port = 28960 + number;
 
     return {
       name: `CoDBase #${number}`,
-      description: `Call of Duty 1 CoDBase match server #${number}.`,
+      description: `Match server #${number}.`,
       systemdServiceName: `codbase-${number}.service`,
-      execStart: `/opt/game-servers/codbase-${number}/cod_lnxded +set dedicated 2 +set net_port ${port} +exec server.cfg +map_rotate`,
+      execStart: getExecStartBase(`codbase-${number}.service`) ?? "",
     };
   }),
   {
     name: "CoDBase SoloQ #1",
-    description: "Call of Duty 1 SoloQ server for pickup matches and practice.",
+    description: "SoloQ server for pickup matches and practice.",
     systemdServiceName: "codbase-soloq-1.service",
-    execStart:
-      "/opt/game-servers/codbase-soloq-1/cod_lnxded +set dedicated 2 +set net_port 28971 +exec server.cfg +map_rotate",
+    execStart: getExecStartBase("codbase-soloq-1.service") ?? "",
   },
 ];
 

@@ -4,9 +4,13 @@ import { requireAdmin, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAccessServer } from "@/lib/rbac";
 import { serializeServer } from "@/lib/serializers";
+import { composeExecStart } from "@/lib/exec-start";
 
 const execStartSchema = z.string().min(1).max(1000).refine((value) => !/[\r\n]/.test(value), {
   message: "ExecStart must be a single line.",
+});
+const execStartExtraSchema = z.string().max(500).refine((value) => !/[\r\n]/.test(value), {
+  message: "ExecStart additions must be a single line.",
 });
 
 const serverSchema = z.object({
@@ -17,7 +21,9 @@ const serverSchema = z.object({
 });
 
 const userServerSchema = z.object({
-  execStart: execStartSchema,
+  name: z.string().min(2),
+  description: z.string().min(2),
+  execStartExtra: execStartExtraSchema,
 });
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -35,9 +41,30 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "Invalid server payload." }, { status: 400 });
   }
 
+  const existingServer = await prisma.gameServer.findUnique({ where: { id } });
+
+  if (!existingServer) {
+    return NextResponse.json({ error: "Server not found." }, { status: 404 });
+  }
+
+  let data;
+
+  if (user.role === "ADMIN") {
+    const adminParsed = serverSchema.parse(body);
+    data = adminParsed;
+  } else {
+    const userParsed = userServerSchema.parse(body);
+
+    data = {
+      name: userParsed.name,
+      description: userParsed.description,
+      execStart: composeExecStart(existingServer.systemdServiceName, userParsed.execStartExtra),
+    };
+  }
+
   const server = await prisma.gameServer.update({
     where: { id },
-    data: user.role === "ADMIN" ? parsed.data : { execStart: parsed.data.execStart },
+    data,
     include: { assignedUsers: true },
   });
 
