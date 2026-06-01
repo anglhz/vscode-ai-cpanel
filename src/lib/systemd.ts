@@ -1,11 +1,12 @@
 import { execFile } from "node:child_process";
 import { spawn } from "node:child_process";
-import path from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const ALLOWED_ACTIONS = ["start", "stop", "restart"] as const;
 const SERVICE_NAME_PATTERN = /^[a-zA-Z0-9_.@:-]+\.service$/;
+const BINARY_NAME_PATTERN = /^[a-zA-Z0-9_.-]+$/;
+const GAME_KEY_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export type ServerAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -27,6 +28,32 @@ function assertSafeExecStart(execStart: string) {
 
 function getSystemdUnitDir() {
   return process.env.SYSTEMD_UNIT_DIR || "/etc/systemd/system";
+}
+
+function getGameServersRoot() {
+  return process.env.GAME_SERVERS_ROOT || "/opt/game-servers";
+}
+
+function getGameServerUser() {
+  return process.env.GAME_SERVER_RUN_USER || "cod1";
+}
+
+function assertSafePort(port: number) {
+  if (!Number.isInteger(port) || port < 1_024 || port > 65_535) {
+    throw new Error("Invalid server port.");
+  }
+}
+
+function assertSafeBinaryName(binaryName: string) {
+  if (!BINARY_NAME_PATTERN.test(binaryName)) {
+    throw new Error("Invalid server binary name.");
+  }
+}
+
+function assertSafeGameKey(game: string) {
+  if (!GAME_KEY_PATTERN.test(game)) {
+    throw new Error("Invalid game key.");
+  }
 }
 
 async function sudoWriteFile(filePath: string, content: string) {
@@ -78,8 +105,8 @@ export async function applySystemdExecStart(serviceName: string, execStart: stri
   }
 
   const unitDir = getSystemdUnitDir();
-  const overrideDir = path.join(unitDir, `${serviceName}.d`);
-  const overridePath = path.join(overrideDir, "override.conf");
+  const overrideDir = `${unitDir}/${serviceName}.d`;
+  const overridePath = `${overrideDir}/override.conf`;
   const content = `[Service]\nExecStart=\nExecStart=${execStart}\n`;
 
   await execFileAsync("sudo", ["mkdir", "-p", overrideDir], {
@@ -93,6 +120,89 @@ export async function applySystemdExecStart(serviceName: string, execStart: stri
   });
 
   return { skipped: false };
+}
+
+export function buildProvisionedServerConfig({
+  name,
+  game,
+  port,
+  maxClients,
+  binaryName,
+}: {
+  name: string;
+  game: string;
+  port: number;
+  maxClients: number;
+  binaryName: string;
+}) {
+  assertSafeGameKey(game);
+  assertSafePort(port);
+  assertSafeBinaryName(binaryName);
+
+  if (!Number.isInteger(maxClients) || maxClients < 1 || maxClients > 128) {
+    throw new Error("Invalid max clients value.");
+  }
+
+  const root = getGameServersRoot();
+  const runUser = getGameServerUser();
+  const serverDir = `${root}/${port}`;
+  const serviceName = `${game}-${port}.service`;
+  const execStart = `${serverDir}/${binaryName} +set dedicated 2 +set net_port ${port} +set sv_maxclients ${maxClients} +map_rotate`;
+  const serviceContent = `[Unit]
+Description=${name}
+After=network.target
+
+[Service]
+Type=simple
+User=${runUser}
+Group=${runUser}
+WorkingDirectory=${serverDir}
+ExecStart=${execStart}
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+`;
+
+  return { serverDir, serviceName, execStart, serviceContent };
+}
+
+export async function provisionSystemdServer(config: {
+  name: string;
+  game: string;
+  port: number;
+  maxClients: number;
+  binaryName: string;
+}) {
+  const built = buildProvisionedServerConfig(config);
+
+  if (process.env.SYSTEMD_SERVER_PROVISIONING_ENABLED !== "true") {
+    return { ...built, skipped: true };
+  }
+
+  const servicePath = `${getSystemdUnitDir()}/${built.serviceName}`;
+  const owner = `${getGameServerUser()}:${getGameServerUser()}`;
+
+  await execFileAsync("sudo", ["mkdir", "-p", built.serverDir], {
+    timeout: 10_000,
+    windowsHide: true,
+  });
+  await execFileAsync("sudo", ["chown", owner, built.serverDir], {
+    timeout: 10_000,
+    windowsHide: true,
+  });
+  await sudoWriteFile(servicePath, built.serviceContent);
+  await execFileAsync("sudo", ["systemctl", "daemon-reload"], {
+    timeout: 30_000,
+    windowsHide: true,
+  });
+  await execFileAsync("sudo", ["systemctl", "enable", built.serviceName], {
+    timeout: 30_000,
+    windowsHide: true,
+  });
+
+  return { ...built, skipped: false };
 }
 
 export type ServerStatus = "ONLINE" | "OFFLINE" | "STARTING" | "STOPPING" | "RESTARTING" | "UNKNOWN";

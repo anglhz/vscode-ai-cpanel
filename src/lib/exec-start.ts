@@ -11,9 +11,19 @@ for (let index = 1; index <= 10; index += 1) {
 export function getExecStartBase(systemdServiceName: string) {
   const port = SERVICE_PORTS[systemdServiceName];
   const folder = systemdServiceName.replace(/\.service$/, "");
+  const genericPort = systemdServiceName.match(/^game-server-(\d+)\.service$/)?.[1];
+  const gamePort = systemdServiceName.match(/^[a-zA-Z0-9_-]+-(\d+)\.service$/)?.[1];
 
   if (port) {
     return `/opt/game-servers/${folder}/cod_lnxded +set dedicated 2 +set net_port ${port} +set sv_maxclients ${DEFAULT_MAX_CLIENTS} +map_rotate`;
+  }
+
+  if (genericPort) {
+    return `/opt/game-servers/${genericPort}/cod_lnxded +set dedicated 2 +set net_port ${genericPort} +set sv_maxclients ${DEFAULT_MAX_CLIENTS} +map_rotate`;
+  }
+
+  if (gamePort) {
+    return `/opt/game-servers/${gamePort}/cod_lnxded +set dedicated 2 +set net_port ${gamePort} +set sv_maxclients ${DEFAULT_MAX_CLIENTS} +map_rotate`;
   }
 
   return `/opt/game-servers/${folder}/server_binary`;

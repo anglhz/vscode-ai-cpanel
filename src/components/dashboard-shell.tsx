@@ -715,8 +715,10 @@ function ServerForm({
       body: JSON.stringify({
         name: formData.get("name"),
         description: formData.get("description"),
-        systemdServiceName: formData.get("systemdServiceName"),
-        execStart: formData.get("execStart"),
+        game: formData.get("game"),
+        port: formData.get("port"),
+        maxClients: formData.get("maxClients"),
+        binaryName: formData.get("binaryName"),
       }),
     });
 
@@ -730,21 +732,17 @@ function ServerForm({
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 xl:grid-cols-[1fr_1fr_1fr_auto]">
+    <form onSubmit={submit} className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_120px_120px_140px_auto]">
       <Input name="name" placeholder="Server name" />
       <Input name="description" placeholder="Description" />
-      <Input name="systemdServiceName" placeholder="game-server-1.service" />
-      <button className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200 xl:row-span-2 xl:h-full">
+      <Input name="game" placeholder="cod1" defaultValue="cod1" />
+      <Input name="port" type="number" placeholder="28960" />
+      <Input name="maxClients" type="number" placeholder="12" defaultValue={12} />
+      <Input name="binaryName" placeholder="cod_lnxded" defaultValue="cod_lnxded" />
+      <button className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200 md:col-span-2 xl:col-span-1">
         <Plus className="h-4 w-4" />
         Add
       </button>
-      <textarea
-        name="execStart"
-        required
-        rows={3}
-        className="rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4 xl:col-span-3"
-        placeholder="/opt/game-servers/server-1/server_binary +set net_port 28960"
-      />
     </form>
   );
 }
