@@ -3,6 +3,8 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  ChevronsLeft,
+  ChevronsRight,
   ChevronDown,
   CirclePower,
   Gauge,
@@ -63,6 +65,7 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
   const [users, setUsers] = useState<UserDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const isAdmin = currentUser.role === "ADMIN";
   const onlineCount = useMemo(
@@ -129,14 +132,28 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
       <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(135deg,#162033_0%,#0a1020_48%,#061b22_100%)]" />
       <div className="pointer-events-none fixed inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.035)_1px,transparent_1px)] [background-size:72px_72px]" />
 
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-white/10 bg-[#07111f]/85 px-4 py-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:block">
-        <Brand />
+      <aside
+        className={`fixed inset-y-0 left-0 z-30 hidden border-r border-white/10 bg-[#07111f]/85 px-4 py-5 shadow-2xl shadow-black/30 backdrop-blur-xl transition-[width] duration-200 lg:block ${
+          sidebarCollapsed ? "w-20" : "w-64"
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <Brand collapsed={sidebarCollapsed} />
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed((value) => !value)}
+            className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-neutral-300 transition hover:bg-white/5"
+            title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
+          >
+            {sidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+          </button>
+        </div>
         <nav className="mt-8 space-y-2">
-          <NavButton active={view === "servers"} onClick={() => setView("servers")} icon={Server}>
+          <NavButton active={view === "servers"} onClick={() => setView("servers")} icon={Server} collapsed={sidebarCollapsed}>
             Servers
           </NavButton>
           {isAdmin ? (
-            <NavButton active={view === "users"} onClick={() => setView("users")} icon={Users}>
+            <NavButton active={view === "users"} onClick={() => setView("users")} icon={Users} collapsed={sidebarCollapsed}>
               Users
             </NavButton>
           ) : null}
@@ -146,11 +163,15 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
           className="absolute bottom-5 left-4 right-4 flex h-11 items-center justify-center gap-2 rounded-md border border-white/10 text-sm font-medium text-neutral-300 transition hover:bg-white/5"
         >
           <LogOut className="h-4 w-4" />
-          Sign out
+          {sidebarCollapsed ? null : "Sign out"}
         </button>
       </aside>
 
-      <main className="relative z-10 pb-24 lg:ml-64 lg:pb-8">
+      <main
+        className={`relative z-10 pb-24 transition-[margin] duration-200 lg:pb-8 ${
+          sidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
+        }`}
+      >
         <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0a1220]/80 px-4 py-4 shadow-lg shadow-black/15 backdrop-blur-xl sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -303,13 +324,13 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Brand() {
+function Brand({ collapsed = false }: { collapsed?: boolean }) {
   return (
     <div className="flex items-center gap-3">
       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-300 text-neutral-950">
         <Shield className="h-5 w-5" />
       </div>
-      <div>
+      <div className={collapsed ? "hidden" : ""}>
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-cyan-200">Intuitive</p>
         <p className="text-lg font-semibold">Gamepanel</p>
       </div>
@@ -321,11 +342,13 @@ function NavButton({
   active,
   onClick,
   icon: Icon,
+  collapsed = false,
   children,
 }: {
   active: boolean;
   onClick: () => void;
   icon: typeof Server;
+  collapsed?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -334,9 +357,10 @@ function NavButton({
       className={`flex h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-medium transition ${
         active ? "bg-cyan-300 text-neutral-950" : "text-neutral-300 hover:bg-white/5"
       }`}
+      title={collapsed ? String(children) : undefined}
     >
       <Icon className="h-4 w-4" />
-      {children}
+      {collapsed ? null : children}
     </button>
   );
 }
@@ -605,7 +629,7 @@ function ServerConfigEditor({
                 name="fsGame"
                 defaultValue={server.startupSettings.fsGame}
                 className="w-full resize-y rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
-                placeholder="__rPAMv115b5"
+                placeholder=""
               />
             </label>
             <label className="block">
@@ -653,7 +677,7 @@ function ServerConfigEditor({
                 rows={3}
                 defaultValue={server.startupSettings.extraParameters}
                 className="w-full resize-y rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
-                placeholder="+set g_gametype sd"
+                placeholder=""
               />
             </label>
           </>
@@ -732,17 +756,31 @@ function ServerForm({
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_120px_120px_140px_auto]">
-      <Input name="name" placeholder="Server name" />
-      <Input name="description" placeholder="Description" />
-      <Input name="game" placeholder="cod1" defaultValue="cod1" />
-      <Input name="port" type="number" placeholder="28960" />
-      <Input name="maxClients" type="number" placeholder="12" defaultValue={12} />
-      <Input name="binaryName" placeholder="cod_lnxded" defaultValue="cod_lnxded" />
-      <button className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200 md:col-span-2 xl:col-span-1">
-        <Plus className="h-4 w-4" />
-        Add
-      </button>
+    <form onSubmit={submit} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px_140px_auto]">
+        <Input name="name" placeholder="Server name" />
+        <Input name="description" placeholder="Description" />
+        <Input name="game" placeholder="cod1" defaultValue="cod1" />
+        <Input name="port" type="number" placeholder="28960" />
+        <button className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+          <Plus className="h-4 w-4" />
+          Add
+        </button>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:max-w-md">
+        <label className="block">
+          <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Max clients
+          </span>
+          <Input name="maxClients" type="number" placeholder="12" defaultValue={12} />
+        </label>
+        <label className="block">
+          <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+            Binary
+          </span>
+          <Input name="binaryName" placeholder="cod_lnxded" defaultValue="cod_lnxded" />
+        </label>
+      </div>
     </form>
   );
 }
