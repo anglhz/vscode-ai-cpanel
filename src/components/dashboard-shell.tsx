@@ -30,6 +30,13 @@ type GameServerDto = {
   execStart: string;
   execStartBase: string | null;
   execStartExtra: string;
+  startupSettings: {
+    fsGame: string;
+    punkbuster: boolean;
+    configFile: string;
+    rconPassword: string;
+    extraParameters: string;
+  };
   assignedUserIds: string[];
 };
 
@@ -536,7 +543,11 @@ function ServerConfigEditor({
       : {
           name: formData.get("name"),
           description: formData.get("description"),
-          execStartExtra: formData.get("execStartExtra"),
+          fsGame: formData.get("fsGame"),
+          punkbuster: formData.get("punkbuster") === "true",
+          configFile: formData.get("configFile"),
+          rconPassword: formData.get("rconPassword"),
+          extraParameters: formData.get("extraParameters"),
         };
 
     const response = await fetch(`/api/servers/${server.id}`, {
@@ -588,14 +599,61 @@ function ServerConfigEditor({
           <>
             <label className="block">
               <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-                Startup arguments
+                +set fs_game
+              </span>
+              <input
+                name="fsGame"
+                defaultValue={server.startupSettings.fsGame}
+                className="w-full resize-y rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
+                placeholder="__rPAMv115b5"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+                +set sv_punkbuster
+              </span>
+              <select
+                name="punkbuster"
+                defaultValue={server.startupSettings.punkbuster ? "true" : "false"}
+                className="h-11 w-full rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none ring-cyan-400/20 transition focus:border-cyan-300 focus:ring-4"
+              >
+                <option value="false">Disabled</option>
+                <option value="true">Enabled</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+                +exec
+              </span>
+              <input
+                name="configFile"
+                defaultValue={server.startupSettings.configFile}
+                className="w-full rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
+                placeholder="server_config.cfg"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+                rconpassword
+              </span>
+              <input
+                name="rconPassword"
+                type="password"
+                defaultValue={server.startupSettings.rconPassword}
+                className="w-full rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
+                placeholder="RCON password"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+                Extra parameters
               </span>
               <textarea
-                name="execStartExtra"
+                name="extraParameters"
                 rows={3}
-                defaultValue={server.execStartExtra}
+                defaultValue={server.startupSettings.extraParameters}
                 className="w-full resize-y rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
-                placeholder="+exec server.cfg +map_rotate"
+                placeholder="+set g_gametype sd"
               />
             </label>
           </>

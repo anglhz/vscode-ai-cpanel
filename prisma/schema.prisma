@@ -24,6 +24,11 @@ model GameServer {
   description        String
   systemdServiceName String             @unique
   execStart          String             @default("")
+  fsGame             String             @default("")
+  punkbuster         Boolean            @default(false)
+  configFile         String             @default("")
+  rconPassword       String             @default("")
+  extraParameters    String             @default("")
   status             String             @default("UNKNOWN")
   assignedUsers      UserServerAccess[]
   createdAt          DateTime           @default(now())

@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { getExecStartBase } from "../src/lib/exec-start";
+import { composeExecStart } from "../src/lib/exec-start";
 
 const prisma = new PrismaClient();
 
@@ -9,7 +9,7 @@ const callOfDutyServers = [
     name: "CoDBase Public",
     description: "Main public server for open community play.",
     systemdServiceName: "codbase-public.service",
-    execStart: getExecStartBase("codbase-public.service") ?? "",
+    execStart: composeExecStart("codbase-public.service", { punkbuster: false }),
   },
   ...Array.from({ length: 10 }, (_, index) => {
     const number = index + 1;
@@ -18,14 +18,14 @@ const callOfDutyServers = [
       name: `CoDBase #${number}`,
       description: `Match server #${number}.`,
       systemdServiceName: `codbase-${number}.service`,
-      execStart: getExecStartBase(`codbase-${number}.service`) ?? "",
+      execStart: composeExecStart(`codbase-${number}.service`, { punkbuster: false }),
     };
   }),
   {
     name: "CoDBase SoloQ #1",
     description: "SoloQ server for pickup matches and practice.",
     systemdServiceName: "codbase-soloq-1.service",
-    execStart: getExecStartBase("codbase-soloq-1.service") ?? "",
+    execStart: composeExecStart("codbase-soloq-1.service", { punkbuster: false }),
   },
 ];
 
@@ -56,9 +56,11 @@ async function main() {
         name: serverData.name,
         description: serverData.description,
         execStart: serverData.execStart,
+        punkbuster: false,
       },
       create: {
         ...serverData,
+        punkbuster: false,
         status: "UNKNOWN",
       },
     });

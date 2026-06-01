@@ -10,8 +10,11 @@ import { applySystemdExecStart } from "@/lib/systemd";
 const execStartSchema = z.string().min(1).max(1000).refine((value) => !/[\r\n]/.test(value), {
   message: "ExecStart must be a single line.",
 });
-const execStartExtraSchema = z.string().max(500).refine((value) => !/[\r\n]/.test(value), {
-  message: "ExecStart additions must be a single line.",
+const startupValueSchema = z.string().max(200).refine((value) => !/[\r\n"]/.test(value), {
+  message: "Startup values must be single-line values without quotes.",
+});
+const extraParametersSchema = z.string().max(500).refine((value) => !/[\r\n]/.test(value), {
+  message: "Extra parameters must be a single line.",
 });
 
 const serverSchema = z.object({
@@ -24,7 +27,13 @@ const serverSchema = z.object({
 const userServerSchema = z.object({
   name: z.string().min(2),
   description: z.string().min(2),
-  execStartExtra: execStartExtraSchema,
+  fsGame: startupValueSchema,
+  punkbuster: z.boolean(),
+  configFile: startupValueSchema,
+  rconPassword: z.string().max(128).refine((value) => !/[\r\n]/.test(value), {
+    message: "RCON password must be a single line.",
+  }),
+  extraParameters: extraParametersSchema,
 });
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -59,11 +68,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     targetExecStart = adminParsed.execStart;
   } else {
     const userParsed = userServerSchema.parse(body);
-    targetExecStart = composeExecStart(existingServer.systemdServiceName, userParsed.execStartExtra);
+    targetExecStart = composeExecStart(existingServer.systemdServiceName, userParsed);
 
     data = {
       name: userParsed.name,
       description: userParsed.description,
+      fsGame: userParsed.fsGame,
+      punkbuster: userParsed.punkbuster,
+      configFile: userParsed.configFile,
+      rconPassword: userParsed.rconPassword,
+      extraParameters: userParsed.extraParameters,
       execStart: targetExecStart,
     };
   }

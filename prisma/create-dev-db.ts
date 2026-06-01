@@ -25,6 +25,11 @@ async function main() {
       "description" TEXT NOT NULL,
       "systemdServiceName" TEXT NOT NULL,
       "execStart" TEXT NOT NULL DEFAULT '',
+      "fsGame" TEXT NOT NULL DEFAULT '',
+      "punkbuster" BOOLEAN NOT NULL DEFAULT false,
+      "configFile" TEXT NOT NULL DEFAULT '',
+      "rconPassword" TEXT NOT NULL DEFAULT '',
+      "extraParameters" TEXT NOT NULL DEFAULT '',
       "status" TEXT NOT NULL DEFAULT 'UNKNOWN',
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL
@@ -49,9 +54,18 @@ async function main() {
     CREATE UNIQUE INDEX IF NOT EXISTS "GameServer_systemdServiceName_key" ON "GameServer"("systemdServiceName");
   `);
 
+  await addColumnIfMissing("execStart", `TEXT NOT NULL DEFAULT ''`);
+  await addColumnIfMissing("fsGame", `TEXT NOT NULL DEFAULT ''`);
+  await addColumnIfMissing("punkbuster", `BOOLEAN NOT NULL DEFAULT false`);
+  await addColumnIfMissing("configFile", `TEXT NOT NULL DEFAULT ''`);
+  await addColumnIfMissing("rconPassword", `TEXT NOT NULL DEFAULT ''`);
+  await addColumnIfMissing("extraParameters", `TEXT NOT NULL DEFAULT ''`);
+}
+
+async function addColumnIfMissing(name: string, definition: string) {
   try {
     await prisma.$executeRawUnsafe(`
-      ALTER TABLE "GameServer" ADD COLUMN "execStart" TEXT NOT NULL DEFAULT '';
+      ALTER TABLE "GameServer" ADD COLUMN "${name}" ${definition};
     `);
   } catch (error) {
     if (!(error instanceof Error) || !error.message.includes("duplicate column name")) {
