@@ -81,6 +81,17 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
     setLoading(false);
   }, [isAdmin]);
 
+  const refreshLiveStatuses = useCallback(async () => {
+    if (servers.length === 0) {
+      return;
+    }
+
+    await Promise.allSettled(
+      servers.map((server) => fetch(`/api/servers/${server.id}/status`)),
+    );
+    await loadData();
+  }, [loadData, servers]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadData();
@@ -88,6 +99,18 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
 
     return () => window.clearTimeout(timer);
   }, [loadData]);
+
+  useEffect(() => {
+    if (view !== "servers") {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      void refreshLiveStatuses();
+    }, 5_000);
+
+    return () => window.clearInterval(interval);
+  }, [refreshLiveStatuses, view]);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });

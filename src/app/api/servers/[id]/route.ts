@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { canAccessServer } from "@/lib/rbac";
 import { serializeServer } from "@/lib/serializers";
 import { composeExecStart } from "@/lib/exec-start";
+import { applySystemdExecStart } from "@/lib/systemd";
 
 const execStartSchema = z.string().min(1).max(1000).refine((value) => !/[\r\n]/.test(value), {
   message: "ExecStart must be a single line.",
@@ -48,19 +49,26 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   let data;
+  let targetServiceName = existingServer.systemdServiceName;
+  let targetExecStart = existingServer.execStart;
 
   if (user.role === "ADMIN") {
     const adminParsed = serverSchema.parse(body);
     data = adminParsed;
+    targetServiceName = adminParsed.systemdServiceName;
+    targetExecStart = adminParsed.execStart;
   } else {
     const userParsed = userServerSchema.parse(body);
+    targetExecStart = composeExecStart(existingServer.systemdServiceName, userParsed.execStartExtra);
 
     data = {
       name: userParsed.name,
       description: userParsed.description,
-      execStart: composeExecStart(existingServer.systemdServiceName, userParsed.execStartExtra),
+      execStart: targetExecStart,
     };
   }
+
+  await applySystemdExecStart(targetServiceName, targetExecStart);
 
   const server = await prisma.gameServer.update({
     where: { id },
