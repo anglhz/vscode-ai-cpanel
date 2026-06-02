@@ -17,6 +17,7 @@ import {
   Square,
   Trash2,
   Users,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import type { SessionUser } from "@/lib/auth";
@@ -124,6 +125,15 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
     return () => window.clearInterval(interval);
   }, [refreshLiveStatuses, view]);
 
+  useEffect(() => {
+    if (!message) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setMessage(""), 5_000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/";
@@ -205,12 +215,6 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
             />
           ) : null}
 
-          {message ? (
-            <div className="mb-4 rounded-md border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
-              {message}
-            </div>
-          ) : null}
-
           {loading ? (
             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-6 text-neutral-300">
               Loading panel...
@@ -243,6 +247,23 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
           Logout
         </MobileButton>
       </nav>
+
+      {message ? (
+        <div className="fixed bottom-20 right-4 z-50 w-[min(calc(100vw-2rem),380px)] rounded-lg border border-cyan-300/25 bg-[#07111f]/95 p-4 text-sm text-cyan-50 shadow-2xl shadow-black/50 backdrop-blur-xl lg:bottom-5">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(103,232,249,.8)]" />
+            <p className="min-w-0 flex-1 leading-5">{message}</p>
+            <button
+              type="button"
+              onClick={() => setMessage("")}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-300 transition hover:bg-white/10 hover:text-white"
+              aria-label="Dismiss message"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -510,12 +531,13 @@ function ServerRow({
           </span>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 pl-7 lg:pl-0">
+        <div className="flex flex-wrap gap-2 pl-7 lg:justify-end lg:pl-0">
           <ActionButton
             onClick={() => runAction("start")}
             disabled={Boolean(busy)}
             icon={CirclePower}
             tone="start"
+            className="min-w-[116px] flex-1 lg:flex-none"
           >
             Start
           </ActionButton>
@@ -524,6 +546,7 @@ function ServerRow({
             disabled={Boolean(busy)}
             icon={RefreshCw}
             tone="restart"
+            className="min-w-[128px] flex-1 lg:flex-none"
           >
             Restart
           </ActionButton>
@@ -532,6 +555,7 @@ function ServerRow({
             disabled={Boolean(busy)}
             icon={Square}
             tone="stop"
+            className="min-w-[116px] flex-1 lg:flex-none"
           >
             Stop
           </ActionButton>
@@ -765,7 +789,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex h-11 w-full min-w-[112px] items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium shadow-lg shadow-black/10 transition disabled:cursor-not-allowed disabled:opacity-60 ${tones[tone]} ${className}`}
+      className={`flex h-11 w-full min-w-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium shadow-lg shadow-black/10 transition disabled:cursor-not-allowed disabled:opacity-60 ${tones[tone]} ${className}`}
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span className="whitespace-nowrap">{children}</span>
