@@ -7,6 +7,7 @@ const ALLOWED_ACTIONS = ["start", "stop", "restart"] as const;
 const SERVICE_NAME_PATTERN = /^[a-zA-Z0-9_.@:-]+\.service$/;
 const BINARY_NAME_PATTERN = /^[a-zA-Z0-9_.-]+$/;
 const GAME_KEY_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const PATH_SEGMENT_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export type ServerAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -54,6 +55,28 @@ function assertSafeGameKey(game: string) {
   if (!GAME_KEY_PATTERN.test(game)) {
     throw new Error("Invalid game key.");
   }
+}
+
+function assertSafePathSegment(value: string, label: string) {
+  if (!PATH_SEGMENT_PATTERN.test(value)) {
+    throw new Error(`Invalid ${label}.`);
+  }
+}
+
+function getWorkingDirectoryFromExecStart(execStart: string) {
+  const binaryPath = execStart.trim().split(/\s+/, 1)[0];
+
+  if (!binaryPath.startsWith(`${getGameServersRoot()}/`) || binaryPath.includes("..")) {
+    throw new Error("ExecStart binary must be inside the game servers root.");
+  }
+
+  const lastSlash = binaryPath.lastIndexOf("/");
+
+  if (lastSlash <= 0) {
+    throw new Error("ExecStart binary path is invalid.");
+  }
+
+  return binaryPath.slice(0, lastSlash);
 }
 
 async function sudoWriteFile(filePath: string, content: string) {
@@ -107,7 +130,8 @@ export async function applySystemdExecStart(serviceName: string, execStart: stri
   const unitDir = getSystemdUnitDir();
   const overrideDir = `${unitDir}/${serviceName}.d`;
   const overridePath = `${overrideDir}/override.conf`;
-  const content = `[Service]\nExecStart=\nExecStart=${execStart}\n`;
+  const workingDirectory = getWorkingDirectoryFromExecStart(execStart);
+  const content = `[Service]\nWorkingDirectory=${workingDirectory}\nExecStart=\nExecStart=${execStart}\n`;
 
   await execFileAsync("sudo", ["mkdir", "-p", overrideDir], {
     timeout: 10_000,
@@ -124,17 +148,20 @@ export async function applySystemdExecStart(serviceName: string, execStart: stri
 
 export function buildProvisionedServerConfig({
   name,
+  ownerFolder,
   game,
   port,
   maxClients,
   binaryName,
 }: {
   name: string;
+  ownerFolder: string;
   game: string;
   port: number;
   maxClients: number;
   binaryName: string;
 }) {
+  assertSafePathSegment(ownerFolder, "owner folder");
   assertSafeGameKey(game);
   assertSafePort(port);
   assertSafeBinaryName(binaryName);
@@ -145,7 +172,7 @@ export function buildProvisionedServerConfig({
 
   const root = getGameServersRoot();
   const runUser = getGameServerUser();
-  const serverDir = `${root}/${port}`;
+  const serverDir = `${root}/${ownerFolder}/${game}/${port}`;
   const serviceName = `${game}-${port}.service`;
   const execStart = `${serverDir}/${binaryName} +set dedicated 2 +set net_port ${port} +set sv_maxclients ${maxClients} +map_rotate`;
   const serviceContent = `[Unit]
@@ -170,6 +197,7 @@ WantedBy=multi-user.target
 
 export async function provisionSystemdServer(config: {
   name: string;
+  ownerFolder: string;
   game: string;
   port: number;
   maxClients: number;

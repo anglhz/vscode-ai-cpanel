@@ -18,6 +18,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 import type { SessionUser } from "@/lib/auth";
 
 type Role = "ADMIN" | "USER";
@@ -138,7 +139,9 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
         }`}
       >
         <div className="flex items-center justify-between gap-2">
-          <Brand collapsed={sidebarCollapsed} />
+          <Link href="/dashboard" aria-label="Go to dashboard start">
+            <Brand collapsed={sidebarCollapsed} />
+          </Link>
           <button
             type="button"
             onClick={() => setSidebarCollapsed((value) => !value)}
@@ -588,6 +591,21 @@ function ServerConfigEditor({
     }
   }
 
+  async function deleteServer() {
+    if (!isAdmin || !window.confirm(`Delete ${server.name} from the panel?`)) {
+      return;
+    }
+
+    const response = await fetch(`/api/servers/${server.id}`, { method: "DELETE" });
+
+    if (response.ok) {
+      setMessage("Server deleted.");
+      await reload();
+    } else {
+      setMessage("Could not delete server.");
+    }
+  }
+
   return (
     <section className="rounded-lg border border-white/10 bg-[#07111f]/90 shadow-xl shadow-black/20">
       <div className="border-b border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-cyan-100">
@@ -682,9 +700,21 @@ function ServerConfigEditor({
             </label>
           </>
         )}
-        <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
-          Save configuration
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+            Save configuration
+          </button>
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={deleteServer}
+              className="flex h-10 items-center gap-2 rounded-md border border-red-400/30 px-4 text-sm font-semibold text-red-200 transition hover:bg-red-400/10"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete server
+            </button>
+          ) : null}
+        </div>
       </form>
     </section>
   );
@@ -739,6 +769,7 @@ function ServerForm({
       body: JSON.stringify({
         name: formData.get("name"),
         description: formData.get("description"),
+        ownerFolder: formData.get("ownerFolder"),
         game: formData.get("game"),
         port: formData.get("port"),
         maxClients: formData.get("maxClients"),
@@ -757,9 +788,10 @@ function ServerForm({
 
   return (
     <form onSubmit={submit} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px_140px_auto]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_140px_120px_140px_auto]">
         <Input name="name" placeholder="Server name" />
         <Input name="description" placeholder="Description" />
+        <Input name="ownerFolder" placeholder="mcfly" />
         <Input name="game" placeholder="cod1" defaultValue="cod1" />
         <Input name="port" type="number" placeholder="28960" />
         <button className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">

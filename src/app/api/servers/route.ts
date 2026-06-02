@@ -10,6 +10,7 @@ const serverStatuses = ["ONLINE", "OFFLINE", "STARTING", "STOPPING", "RESTARTING
 const serverSchema = z.object({
   name: z.string().min(2),
   description: z.string().min(2),
+  ownerFolder: z.string().min(1).max(48).regex(/^[a-zA-Z0-9_-]+$/),
   game: z.string().min(2).max(24).regex(/^[a-zA-Z0-9_-]+$/),
   port: z.coerce.number().int().min(1024).max(65535),
   maxClients: z.coerce.number().int().min(1).max(128).default(12),
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
 
   const provisioned = await provisionSystemdServer({
     name: parsed.data.name,
+    ownerFolder: parsed.data.ownerFolder,
     game: parsed.data.game,
     port: parsed.data.port,
     maxClients: parsed.data.maxClients,
