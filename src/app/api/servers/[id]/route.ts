@@ -4,7 +4,7 @@ import { requireAdmin, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAccessServer } from "@/lib/rbac";
 import { serializeServer } from "@/lib/serializers";
-import { composeExecStart } from "@/lib/exec-start";
+import { composeExecStartFromExisting } from "@/lib/exec-start";
 import { applySystemdExecStart } from "@/lib/systemd";
 
 const execStartSchema = z.string().min(1).max(1000).refine((value) => !/[\r\n]/.test(value), {
@@ -68,7 +68,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     targetExecStart = adminParsed.execStart;
   } else {
     const userParsed = userServerSchema.parse(body);
-    targetExecStart = composeExecStart(existingServer.systemdServiceName, userParsed);
+    targetExecStart = composeExecStartFromExisting(
+      existingServer.execStart,
+      existingServer.systemdServiceName,
+      userParsed,
+    );
 
     data = {
       name: userParsed.name,

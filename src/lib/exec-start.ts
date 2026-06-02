@@ -48,7 +48,28 @@ export type StartupSettings = {
 };
 
 export function composeExecStart(systemdServiceName: string, settings: StartupSettings) {
-  const base = getExecStartBase(systemdServiceName);
+  return composeExecStartFromBase(getExecStartBase(systemdServiceName), settings);
+}
+
+export function composeExecStartFromExisting(
+  existingExecStart: string,
+  systemdServiceName: string,
+  settings: StartupSettings,
+) {
+  return composeExecStartFromBase(getExistingExecStartBase(existingExecStart, systemdServiceName), settings);
+}
+
+function getExistingExecStartBase(existingExecStart: string, systemdServiceName: string) {
+  const mapRotateIndex = existingExecStart.indexOf(" +map_rotate");
+
+  if (mapRotateIndex >= 0) {
+    return existingExecStart.slice(0, mapRotateIndex + " +map_rotate".length);
+  }
+
+  return getExecStartBase(systemdServiceName);
+}
+
+function composeExecStartFromBase(base: string, settings: StartupSettings) {
   const parts = [base];
   const fsGame = settings.fsGame?.trim();
   const configFile = settings.configFile?.trim();
