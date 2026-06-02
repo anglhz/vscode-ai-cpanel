@@ -849,6 +849,8 @@ function UserForm({
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
 }) {
+  const [createSftpUser, setCreateSftpUser] = useState(false);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -879,6 +881,22 @@ function UserForm({
           <option value="ADMIN">Admin</option>
         </select>
       </div>
+      <label className="mt-4 flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-neutral-200">
+        <input
+          type="checkbox"
+          name="createSftpUser"
+          checked={createSftpUser}
+          onChange={(event) => setCreateSftpUser(event.target.checked)}
+          className="h-4 w-4 accent-cyan-300"
+        />
+        Create jailed SFTP user
+      </label>
+      {createSftpUser ? (
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <Input name="sftpUsername" placeholder="SFTP username, for example mcfly" />
+          <Input name="sftpPassword" type="password" placeholder="SFTP password" />
+        </div>
+      ) : null}
       <ServerCheckboxes servers={servers} selected={[]} />
       <button className="mt-4 flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
         <Plus className="h-4 w-4" />
@@ -983,5 +1001,8 @@ function userPayload(form: HTMLFormElement) {
     password: formData.get("password") || undefined,
     role: formData.get("role"),
     serverIds: formData.getAll("serverIds"),
+    createSftpUser: formData.get("createSftpUser") === "on",
+    sftpUsername: formData.get("sftpUsername") || undefined,
+    sftpPassword: formData.get("sftpPassword") || undefined,
   };
 }

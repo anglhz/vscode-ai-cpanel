@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { provisionSftpUser } from "@/lib/sftp";
 
 const roles = ["ADMIN", "USER"] as const;
 
@@ -12,6 +13,9 @@ const userSchema = z.object({
   password: z.string().min(8),
   role: z.enum(roles),
   serverIds: z.array(z.string()).default([]),
+  createSftpUser: z.boolean().default(false),
+  sftpUsername: z.string().regex(/^[a-zA-Z0-9_-]{2,32}$/).optional().or(z.literal("")),
+  sftpPassword: z.string().min(8).optional().or(z.literal("")),
 });
 
 export async function GET() {
@@ -45,6 +49,18 @@ export async function POST(request: Request) {
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+
+  if (parsed.data.createSftpUser) {
+    if (!parsed.data.sftpUsername || !parsed.data.sftpPassword) {
+      return NextResponse.json({ error: "SFTP username and password are required." }, { status: 400 });
+    }
+
+    await provisionSftpUser({
+      username: parsed.data.sftpUsername,
+      password: parsed.data.sftpPassword,
+    });
+  }
+
   const user = await prisma.user.create({
     data: {
       name: parsed.data.name,
