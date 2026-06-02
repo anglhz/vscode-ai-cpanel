@@ -59,6 +59,7 @@ const statusStyle: Record<ServerStatus, string> = {
   RESTARTING: "border-violet-400/30 bg-violet-400/10 text-violet-200",
   UNKNOWN: "border-white/10 bg-white/5 text-neutral-300",
 };
+const SERVER_PUBLIC_IP = "144.76.41.252";
 
 export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
   const [view, setView] = useState<"servers" | "users">("servers");
@@ -510,13 +511,28 @@ function ServerRow({
         </div>
 
         <div className="grid grid-cols-3 gap-2 pl-7 lg:pl-0">
-          <ActionButton onClick={() => runAction("start")} disabled={Boolean(busy)} icon={CirclePower}>
+          <ActionButton
+            onClick={() => runAction("start")}
+            disabled={Boolean(busy)}
+            icon={CirclePower}
+            tone="start"
+          >
             Start
           </ActionButton>
-          <ActionButton onClick={() => runAction("restart")} disabled={Boolean(busy)} icon={RefreshCw}>
+          <ActionButton
+            onClick={() => runAction("restart")}
+            disabled={Boolean(busy)}
+            icon={RefreshCw}
+            tone="restart"
+          >
             Restart
           </ActionButton>
-          <ActionButton onClick={() => runAction("stop")} disabled={Boolean(busy)} icon={Square}>
+          <ActionButton
+            onClick={() => runAction("stop")}
+            disabled={Boolean(busy)}
+            icon={Square}
+            tone="stop"
+          >
             Stop
           </ActionButton>
         </div>
@@ -727,23 +743,32 @@ function ActionButton({
   disabled,
   icon: Icon,
   className = "",
+  tone = "neutral",
   children,
 }: {
   onClick: () => void;
   disabled: boolean;
   icon: typeof Server;
   className?: string;
+  tone?: "neutral" | "start" | "restart" | "stop";
   children: React.ReactNode;
 }) {
+  const tones = {
+    neutral: "border-white/10 bg-[#0b1625] text-neutral-200 hover:border-cyan-300/40 hover:bg-cyan-300/10",
+    start: "border-emerald-400/30 bg-emerald-500/15 text-emerald-100 hover:border-emerald-300/60 hover:bg-emerald-500/25",
+    restart: "border-amber-400/35 bg-amber-500/15 text-amber-100 hover:border-amber-300/70 hover:bg-amber-500/25",
+    stop: "border-red-400/35 bg-red-500/15 text-red-100 hover:border-red-300/70 hover:bg-red-500/25",
+  };
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex h-11 w-full min-w-0 items-center justify-center gap-2 rounded-md border border-white/10 bg-[#0b1625] px-2 text-sm font-medium text-neutral-200 shadow-lg shadow-black/10 transition hover:border-cyan-300/40 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60 sm:px-3 ${className}`}
+      className={`flex h-11 w-full min-w-[112px] items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium shadow-lg shadow-black/10 transition disabled:cursor-not-allowed disabled:opacity-60 ${tones[tone]} ${className}`}
     >
       <Icon className="h-4 w-4 shrink-0" />
-      <span className="truncate">{children}</span>
+      <span className="whitespace-nowrap">{children}</span>
     </button>
   );
 }
@@ -751,7 +776,7 @@ function ActionButton({
 function getServerAddress(execStart: string) {
   const port = execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1];
 
-  return port ? `:${port}` : "Port unknown";
+  return port ? `${SERVER_PUBLIC_IP}:${port}` : "Port unknown";
 }
 
 function ServerForm({
