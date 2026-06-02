@@ -134,24 +134,26 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
       <div className="pointer-events-none fixed inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.035)_1px,transparent_1px)] [background-size:72px_72px]" />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-30 hidden border-r border-white/10 bg-[#07111f]/85 px-4 py-5 shadow-2xl shadow-black/30 backdrop-blur-xl transition-[width] duration-200 lg:block ${
+        className={`fixed inset-y-0 left-0 z-30 hidden border-r border-white/10 bg-[#07111f]/85 px-4 py-8 shadow-2xl shadow-black/30 backdrop-blur-xl transition-[width] duration-200 lg:block ${
           sidebarCollapsed ? "w-20" : "w-64"
         }`}
       >
-        <div className="flex items-center justify-between gap-2">
+        <div className={`flex items-center gap-2 ${sidebarCollapsed ? "justify-center" : "justify-between"}`}>
           <Link href="/dashboard" aria-label="Go to dashboard start">
             <Brand collapsed={sidebarCollapsed} />
           </Link>
           <button
             type="button"
             onClick={() => setSidebarCollapsed((value) => !value)}
-            className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-neutral-300 transition hover:bg-white/5"
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 text-neutral-300 transition hover:bg-white/5 ${
+              sidebarCollapsed ? "absolute right-[-1.25rem] top-14 bg-[#07111f] shadow-lg shadow-black/20" : ""
+            }`}
             title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
           >
             {sidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
           </button>
         </div>
-        <nav className="mt-8 space-y-2">
+        <nav className={sidebarCollapsed ? "mt-12 space-y-3" : "mt-8 space-y-2"}>
           <NavButton active={view === "servers"} onClick={() => setView("servers")} icon={Server} collapsed={sidebarCollapsed}>
             Servers
           </NavButton>
