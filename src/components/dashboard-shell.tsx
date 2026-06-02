@@ -501,6 +501,7 @@ function ServerRow({
   }
 
   const address = getServerAddress(server.execStart);
+  const isOffline = server.status === "OFFLINE" || server.status === "UNKNOWN";
 
   return (
     <details className="group bg-[#0d1624]/45 open:bg-[linear-gradient(135deg,rgba(15,23,42,.88),rgba(8,47,73,.55))]">
@@ -531,34 +532,36 @@ function ServerRow({
           </span>
         </div>
 
-        <div className="flex flex-wrap gap-2 pl-7 lg:justify-end lg:pl-0">
-          <ActionButton
-            onClick={() => runAction("start")}
-            disabled={Boolean(busy)}
-            icon={CirclePower}
-            tone="start"
-            className="min-w-[116px] flex-1 lg:flex-none"
-          >
-            Start
-          </ActionButton>
-          <ActionButton
-            onClick={() => runAction("restart")}
-            disabled={Boolean(busy)}
-            icon={RefreshCw}
-            tone="restart"
-            className="min-w-[128px] flex-1 lg:flex-none"
-          >
-            Restart
-          </ActionButton>
-          <ActionButton
-            onClick={() => runAction("stop")}
-            disabled={Boolean(busy)}
-            icon={Square}
-            tone="stop"
-            className="min-w-[116px] flex-1 lg:flex-none"
-          >
-            Stop
-          </ActionButton>
+        <div className={`grid gap-2 pl-7 lg:pl-0 ${isOffline ? "grid-cols-1" : "grid-cols-2"}`}>
+          {isOffline ? (
+            <ActionButton
+              onClick={() => runAction("start")}
+              disabled={Boolean(busy)}
+              icon={CirclePower}
+              tone="start"
+            >
+              Start
+            </ActionButton>
+          ) : (
+            <>
+              <ActionButton
+                onClick={() => runAction("restart")}
+                disabled={Boolean(busy)}
+                icon={RefreshCw}
+                tone="restart"
+              >
+                Restart
+              </ActionButton>
+              <ActionButton
+                onClick={() => runAction("stop")}
+                disabled={Boolean(busy)}
+                icon={Square}
+                tone="stop"
+              >
+                Stop
+              </ActionButton>
+            </>
+          )}
         </div>
       </summary>
 
