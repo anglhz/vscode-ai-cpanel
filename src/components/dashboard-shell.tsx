@@ -52,6 +52,20 @@ type UserDto = {
   serverIds: string[];
 };
 
+type ServerPlayersDto = {
+  hostname: string;
+  mapName: string;
+  gameType: string;
+  maxClients: number | null;
+  playerCount: number;
+  players: {
+    name: string;
+    score: string;
+    ping: string;
+  }[];
+  retrievedAt: number | null;
+};
+
 const statusStyle: Record<ServerStatus, string> = {
   ONLINE: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
   OFFLINE: "border-neutral-500/30 bg-neutral-500/10 text-neutral-300",
@@ -60,7 +74,7 @@ const statusStyle: Record<ServerStatus, string> = {
   RESTARTING: "border-violet-400/30 bg-violet-400/10 text-violet-200",
   UNKNOWN: "border-white/10 bg-white/5 text-neutral-300",
 };
-const SERVER_PUBLIC_IP = "144.76.41.252";
+const SERVER_PUBLIC_IP = process.env.NEXT_PUBLIC_SERVER_PUBLIC_IP ?? "144.76.41.252";
 
 export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
   const [view, setView] = useState<"servers" | "users">("servers");
@@ -478,6 +492,9 @@ function ServerRow({
   setMessage: (message: string) => void;
 }) {
   const [busy, setBusy] = useState("");
+  const [players, setPlayers] = useState<ServerPlayersDto | null>(null);
+  const [playersLoading, setPlayersLoading] = useState(false);
+  const [playersError, setPlayersError] = useState("");
 
   async function runAction(action: "start" | "stop" | "restart") {
     setBusy(action);
@@ -500,11 +517,33 @@ function ServerRow({
     await reload();
   }
 
+  async function loadPlayers() {
+    setPlayersLoading(true);
+    setPlayersError("");
+    const response = await fetch(`/api/servers/${server.id}/players`);
+    setPlayersLoading(false);
+
+    if (!response.ok) {
+      setPlayers(null);
+      setPlayersError("Could not load player data.");
+      return;
+    }
+
+    setPlayers(await response.json());
+  }
+
   const address = getServerAddress(server.execStart);
   const isOffline = server.status === "OFFLINE" || server.status === "UNKNOWN";
 
   return (
-    <details className="group bg-[#0d1624]/45 open:bg-[linear-gradient(135deg,rgba(15,23,42,.88),rgba(8,47,73,.55))]">
+    <details
+      className="group bg-[#0d1624]/45 open:bg-[linear-gradient(135deg,rgba(15,23,42,.88),rgba(8,47,73,.55))]"
+      onToggle={(event) => {
+        if (event.currentTarget.open && !players && !playersLoading) {
+          void loadPlayers();
+        }
+      }}
+    >
       <summary className="grid cursor-pointer gap-3 px-4 py-3 transition hover:bg-white/[0.045] lg:grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.7fr)_minmax(230px,0.9fr)] lg:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <ChevronDown className="h-4 w-4 shrink-0 text-neutral-500 transition group-open:rotate-180" />
@@ -579,6 +618,12 @@ function ServerRow({
               {isAdmin && server.systemdServiceName ? server.systemdServiceName : "Assigned server"}
             </span>
           </div>
+          <PlayersPanel
+            players={players}
+            loading={playersLoading}
+            error={playersError}
+            onRefresh={loadPlayers}
+          />
         </div>
         <ServerConfigEditor
           server={server}
@@ -588,6 +633,88 @@ function ServerRow({
         />
       </div>
     </details>
+  );
+}
+
+function PlayersPanel({
+  players,
+  loading,
+  error,
+  onRefresh,
+}: {
+  players: ServerPlayersDto | null;
+  loading: boolean;
+  error: string;
+  onRefresh: () => Promise<void>;
+}) {
+  const maxClients = players?.maxClients ? `/${players.maxClients}` : "";
+
+  return (
+    <section className="rounded-lg border border-white/10 bg-[#07111f]/70 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Players online</p>
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <p className="text-2xl font-semibold text-white">
+              {players ? `${players.playerCount}${maxClients}` : loading ? "Loading..." : "0"}
+            </p>
+            {players?.mapName ? (
+              <span className="rounded-md border border-cyan-300/20 bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-100">
+                {players.mapName}
+              </span>
+            ) : null}
+            {players?.gameType ? (
+              <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-xs font-medium uppercase text-neutral-300">
+                {players.gameType}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => void onRefresh()}
+          disabled={loading}
+          className="flex h-9 items-center gap-2 rounded-md border border-white/10 px-3 text-sm font-medium text-neutral-200 transition hover:border-cyan-300/40 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          Refresh players
+        </button>
+      </div>
+
+      {players?.hostname ? (
+        <p className="mt-3 truncate text-sm text-neutral-400">{stripCodColors(players.hostname)}</p>
+      ) : null}
+
+      {error ? <p className="mt-3 text-sm text-red-200">{error}</p> : null}
+
+      {players && players.players.length > 0 ? (
+        <div className="mt-4 overflow-hidden rounded-md border border-white/10">
+          <div className="grid grid-cols-[1fr_72px_72px] bg-white/[0.06] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+            <span>Name</span>
+            <span className="text-right">Score</span>
+            <span className="text-right">Ping</span>
+          </div>
+          <div className="max-h-72 divide-y divide-white/10 overflow-y-auto">
+            {players.players.map((player, index) => (
+              <div
+                key={`${player.name}-${index}`}
+                className="grid grid-cols-[1fr_72px_72px] px-3 py-2 text-sm text-neutral-200"
+              >
+                <span className="truncate">{stripCodColors(player.name)}</span>
+                <span className="text-right font-mono text-neutral-300">{player.score}</span>
+                <span className="text-right font-mono text-neutral-300">{player.ping}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {players && players.players.length === 0 ? (
+        <p className="mt-4 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-400">
+          No players online right now.
+        </p>
+      ) : null}
+    </section>
   );
 }
 
@@ -804,6 +931,10 @@ function getServerAddress(execStart: string) {
   const port = execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1];
 
   return port ? `${SERVER_PUBLIC_IP}:${port}` : "Port unknown";
+}
+
+function stripCodColors(value: string) {
+  return value.replace(/\^[0-9]/g, "");
 }
 
 function ServerForm({
