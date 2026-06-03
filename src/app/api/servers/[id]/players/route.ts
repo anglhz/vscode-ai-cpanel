@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { getCodPmPlayers } from "@/lib/codpm";
+import { queryGameServerPlayers } from "@/lib/game-query";
 import { prisma } from "@/lib/prisma";
 import { canAccessServer } from "@/lib/rbac";
 
@@ -10,6 +10,10 @@ function getPublicIp() {
 
 function getPortFromExecStart(execStart: string) {
   return execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1] ?? null;
+}
+
+function isVoiceServer(serviceName: string) {
+  return serviceName.startsWith("ts3-");
 }
 
 export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
@@ -26,6 +30,10 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     return NextResponse.json({ error: "Server not found." }, { status: 404 });
   }
 
+  if (isVoiceServer(server.systemdServiceName)) {
+    return NextResponse.json({ error: "Player queries are not available for voice servers." }, { status: 400 });
+  }
+
   const port = getPortFromExecStart(server.execStart);
 
   if (!port) {
@@ -33,7 +41,7 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
   }
 
   try {
-    const players = await getCodPmPlayers(getPublicIp(), port);
+    const players = await queryGameServerPlayers(getPublicIp(), Number(port));
     return NextResponse.json(players);
   } catch {
     return NextResponse.json({ error: "Could not load player data." }, { status: 502 });

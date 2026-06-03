@@ -89,11 +89,16 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [playerCounts, setPlayerCounts] = useState<Record<string, number>>({});
 
   const isAdmin = currentUser.role === "ADMIN";
   const onlineCount = useMemo(
     () => servers.filter((server) => server.status === "ONLINE").length,
     [servers],
+  );
+  const activePlayerCount = useMemo(
+    () => Object.values(playerCounts).reduce((total, count) => total + count, 0),
+    [playerCounts],
   );
 
   const loadData = useCallback(async () => {
@@ -125,6 +130,36 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
     await loadData();
   }, [loadData, servers]);
 
+  const refreshPlayerCounts = useCallback(async () => {
+    const gameServers = servers.filter(isQueryableGameServer);
+
+    if (gameServers.length === 0) {
+      setPlayerCounts({});
+      return;
+    }
+
+    const results = await Promise.allSettled(
+      gameServers.map(async (server) => {
+        const response = await fetch(`/api/servers/${server.id}/players`);
+
+        if (!response.ok) {
+          return [server.id, 0] as const;
+        }
+
+        const data = (await response.json()) as ServerPlayersDto;
+        return [server.id, data.playerCount] as const;
+      }),
+    );
+
+    setPlayerCounts(
+      Object.fromEntries(
+        results.map((result, index) =>
+          result.status === "fulfilled" ? result.value : ([gameServers[index].id, 0] as const),
+        ),
+      ),
+    );
+  }, [servers]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadData();
@@ -144,6 +179,24 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
 
     return () => window.clearInterval(interval);
   }, [refreshLiveStatuses, view]);
+
+  useEffect(() => {
+    if (view !== "servers") {
+      return;
+    }
+
+    const initialTimer = window.setTimeout(() => {
+      void refreshPlayerCounts();
+    }, 0);
+    const interval = window.setInterval(() => {
+      void refreshPlayerCounts();
+    }, 10_000);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(interval);
+    };
+  }, [refreshPlayerCounts, view]);
 
   useEffect(() => {
     if (!message) {
@@ -232,6 +285,7 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
               currentUser={currentUser}
               servers={servers}
               onlineCount={onlineCount}
+              activePlayerCount={activePlayerCount}
             />
           ) : null}
 
@@ -292,10 +346,12 @@ function ServerOverview({
   currentUser,
   servers,
   onlineCount,
+  activePlayerCount,
 }: {
   currentUser: SessionUser;
   servers: GameServerDto[];
   onlineCount: number;
+  activePlayerCount: number;
 }) {
   const offlineCount = servers.length - onlineCount;
 
@@ -317,10 +373,11 @@ function ServerOverview({
           </span>
         </div>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-3">
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <OverviewStat icon={Server} label="Servers" value={servers.length} tone="cyan" />
           <OverviewStat icon={Activity} label="Online" value={onlineCount} tone="emerald" />
           <OverviewStat icon={Gauge} label="Offline" value={offlineCount} tone="amber" />
+          <OverviewStat icon={Users} label="Active players" value={activePlayerCount} tone="violet" />
         </div>
       </div>
 
@@ -345,12 +402,13 @@ function OverviewStat({
   icon: typeof Server;
   label: string;
   value: number;
-  tone: "cyan" | "emerald" | "amber";
+  tone: "cyan" | "emerald" | "amber" | "violet";
 }) {
   const tones = {
     cyan: "border-cyan-300/20 bg-cyan-300/10 text-cyan-100",
     emerald: "border-emerald-300/20 bg-emerald-300/10 text-emerald-100",
     amber: "border-amber-300/20 bg-amber-300/10 text-amber-100",
+    violet: "border-violet-300/20 bg-violet-300/10 text-violet-100",
   };
 
   return (
@@ -540,12 +598,13 @@ function ServerRow({
 
   const address = getServerAddress(server.execStart);
   const isOffline = server.status === "OFFLINE" || server.status === "UNKNOWN";
+  const isVoiceServer = isVoiceGameServer(server);
 
   return (
     <details
       className="group bg-[#0d1624]/45 open:bg-[linear-gradient(135deg,rgba(15,23,42,.88),rgba(8,47,73,.55))]"
       onToggle={(event) => {
-        if (event.currentTarget.open && !players && !playersLoading) {
+        if (event.currentTarget.open && !isVoiceServer && !players && !playersLoading) {
           void loadPlayers();
         }
       }}
@@ -624,12 +683,14 @@ function ServerRow({
               {isAdmin && server.systemdServiceName ? server.systemdServiceName : "Assigned server"}
             </span>
           </div>
-          <PlayersPanel
-            players={players}
-            loading={playersLoading}
-            error={playersError}
-            onRefresh={loadPlayers}
-          />
+          {!isVoiceServer ? (
+            <PlayersPanel
+              players={players}
+              loading={playersLoading}
+              error={playersError}
+              onRefresh={loadPlayers}
+            />
+          ) : null}
         </div>
         <ServerConfigEditor
           server={server}
@@ -735,6 +796,8 @@ function ServerConfigEditor({
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
 }) {
+  const isVoiceServer = isVoiceGameServer(server);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
@@ -743,16 +806,16 @@ function ServerConfigEditor({
           name: formData.get("name"),
           description: formData.get("description"),
           systemdServiceName: formData.get("systemdServiceName"),
-          execStart: formData.get("execStart"),
+          execStart: isVoiceServer ? server.execStart : formData.get("execStart"),
         }
       : {
           name: formData.get("name"),
           description: formData.get("description"),
-          fsGame: formData.get("fsGame"),
-          punkbuster: formData.get("punkbuster") === "true",
-          configFile: formData.get("configFile"),
-          rconPassword: formData.get("rconPassword"),
-          extraParameters: formData.get("extraParameters"),
+          fsGame: isVoiceServer ? "" : formData.get("fsGame"),
+          punkbuster: isVoiceServer ? false : formData.get("punkbuster") === "true",
+          configFile: isVoiceServer ? "" : formData.get("configFile"),
+          rconPassword: isVoiceServer ? "" : formData.get("rconPassword"),
+          extraParameters: isVoiceServer ? "" : formData.get("extraParameters"),
         };
 
     const response = await fetch(`/api/servers/${server.id}`, {
@@ -762,10 +825,10 @@ function ServerConfigEditor({
     });
 
     if (response.ok) {
-      setMessage("Server startup line updated.");
+      setMessage("Server configuration updated.");
       await reload();
     } else {
-      setMessage("Could not update server startup line.");
+      setMessage("Could not update server configuration.");
     }
   }
 
@@ -801,7 +864,7 @@ function ServerConfigEditor({
             />
           </>
         ) : null}
-        {isAdmin ? (
+        {isAdmin && !isVoiceServer ? (
           <label className="block">
             <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
               ExecStart
@@ -815,7 +878,7 @@ function ServerConfigEditor({
               placeholder="/opt/game-servers/server-1/server_binary +set net_port 28960"
             />
           </label>
-        ) : (
+        ) : !isAdmin && !isVoiceServer ? (
           <>
             <label className="block">
               <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
@@ -877,7 +940,11 @@ function ServerConfigEditor({
               />
             </label>
           </>
-        )}
+        ) : isVoiceServer ? (
+          <p className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-400">
+            TeamSpeak servers do not use editable game startup arguments in this panel.
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
             Save configuration
@@ -934,13 +1001,25 @@ function ActionButton({
 }
 
 function getServerAddress(execStart: string) {
-  const port = execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1];
+  const port = execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1] ?? execStart.match(/default_voice_port=(\d+)/)?.[1];
 
   return port ? `${SERVER_PUBLIC_IP}:${port}` : "Port unknown";
 }
 
 function stripCodColors(value: string) {
   return value.replace(/\^[0-9]/g, "");
+}
+
+function getServerGame(server: GameServerDto) {
+  return server.systemdServiceName?.match(/^([a-zA-Z0-9_-]+)-\d+\.service$/)?.[1] ?? "";
+}
+
+function isVoiceGameServer(server: GameServerDto) {
+  return getServerGame(server) === "ts3";
+}
+
+function isQueryableGameServer(server: GameServerDto) {
+  return !isVoiceGameServer(server) && Boolean(server.execStart.match(/\+set\s+net_port\s+\d+/));
 }
 
 function ServerForm({
@@ -952,6 +1031,7 @@ function ServerForm({
 }) {
   const [selectedGame, setSelectedGame] = useState<(typeof SERVER_GAME_OPTIONS)[number]["value"]>("cod1");
   const selectedGameOption = SERVER_GAME_OPTIONS.find((game) => game.value === selectedGame) ?? SERVER_GAME_OPTIONS[0];
+  const isTeamspeak = selectedGame === "ts3";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -967,7 +1047,7 @@ function ServerForm({
         game: formData.get("game"),
         port: formData.get("port"),
         maxClients: formData.get("maxClients"),
-        binaryName: formData.get("binaryName"),
+        binaryName: isTeamspeak ? selectedGameOption.binary : formData.get("binaryName"),
       }),
     });
 
@@ -986,7 +1066,7 @@ function ServerForm({
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_140px_150px_120px_auto]">
         <Input name="name" placeholder="Server name" />
         <Input name="description" placeholder="Description" />
-        <Input name="ownerFolder" placeholder="mcfly" />
+        <Input name="ownerFolder" placeholder="Alias" />
         <select
           name="game"
           value={selectedGame}
@@ -1005,20 +1085,33 @@ function ServerForm({
           Add
         </button>
       </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:max-w-md">
-        <label className="block">
-          <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-            Max clients
-          </span>
-          <Input name="maxClients" type="number" placeholder="12" defaultValue={12} />
-        </label>
-        <label className="block">
-          <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-            Binary
-          </span>
-          <Input name="binaryName" placeholder={selectedGameOption.binary} defaultValue={selectedGameOption.binary} key={selectedGame} />
-        </label>
+      <div className={`mt-5 grid gap-5 ${isTeamspeak ? "sm:grid-cols-1 lg:max-w-xs" : "sm:grid-cols-2 lg:max-w-2xl"}`}>
+        {!isTeamspeak ? (
+          <label className="block">
+            <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+              Max clients
+            </span>
+            <Input name="maxClients" type="number" placeholder="12" defaultValue={12} />
+          </label>
+        ) : (
+          <input type="hidden" name="maxClients" value="32" />
+        )}
+        {!isTeamspeak ? (
+          <label className="block">
+            <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+              Binary
+            </span>
+            <Input name="binaryName" placeholder={selectedGameOption.binary} defaultValue={selectedGameOption.binary} key={selectedGame} />
+          </label>
+        ) : (
+          <input type="hidden" name="binaryName" value={selectedGameOption.binary} />
+        )}
       </div>
+      {isTeamspeak ? (
+        <p className="mt-3 text-sm text-neutral-400">
+          TeamSpeak uses the bundled start script automatically, so no startup binary is needed here.
+        </p>
+      ) : null}
     </form>
   );
 }

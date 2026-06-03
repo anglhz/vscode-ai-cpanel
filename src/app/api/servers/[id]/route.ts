@@ -36,6 +36,10 @@ const userServerSchema = z.object({
   extraParameters: extraParametersSchema,
 });
 
+function isVoiceServer(serviceName: string) {
+  return serviceName.startsWith("ts3-");
+}
+
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await context.params;
@@ -60,33 +64,49 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   let data;
   let targetServiceName = existingServer.systemdServiceName;
   let targetExecStart = existingServer.execStart;
+  const voiceServer = isVoiceServer(existingServer.systemdServiceName);
 
   if (user.role === "ADMIN") {
     const adminParsed = serverSchema.parse(body);
-    data = adminParsed;
+    data = voiceServer
+      ? {
+          name: adminParsed.name,
+          description: adminParsed.description,
+          systemdServiceName: adminParsed.systemdServiceName,
+        }
+      : adminParsed;
     targetServiceName = adminParsed.systemdServiceName;
-    targetExecStart = adminParsed.execStart;
+    targetExecStart = voiceServer ? existingServer.execStart : adminParsed.execStart;
   } else {
     const userParsed = userServerSchema.parse(body);
-    targetExecStart = composeExecStartFromExisting(
-      existingServer.execStart,
-      existingServer.systemdServiceName,
-      userParsed,
-    );
+    targetExecStart = voiceServer
+      ? existingServer.execStart
+      : composeExecStartFromExisting(
+          existingServer.execStart,
+          existingServer.systemdServiceName,
+          userParsed,
+        );
 
-    data = {
-      name: userParsed.name,
-      description: userParsed.description,
-      fsGame: userParsed.fsGame,
-      punkbuster: userParsed.punkbuster,
-      configFile: userParsed.configFile,
-      rconPassword: userParsed.rconPassword,
-      extraParameters: userParsed.extraParameters,
-      execStart: targetExecStart,
-    };
+    data = voiceServer
+      ? {
+          name: userParsed.name,
+          description: userParsed.description,
+        }
+      : {
+          name: userParsed.name,
+          description: userParsed.description,
+          fsGame: userParsed.fsGame,
+          punkbuster: userParsed.punkbuster,
+          configFile: userParsed.configFile,
+          rconPassword: userParsed.rconPassword,
+          extraParameters: userParsed.extraParameters,
+          execStart: targetExecStart,
+        };
   }
 
-  await applySystemdExecStart(targetServiceName, targetExecStart);
+  if (!voiceServer) {
+    await applySystemdExecStart(targetServiceName, targetExecStart);
+  }
 
   const server = await prisma.gameServer.update({
     where: { id },
