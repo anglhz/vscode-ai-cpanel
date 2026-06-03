@@ -536,6 +536,7 @@ function ServersPanel({
   const [orderedServers, setOrderedServers] = useState(servers);
   const [draggedServerId, setDraggedServerId] = useState("");
   const [draggedGameKey, setDraggedGameKey] = useState("");
+  const [collapsedGames, setCollapsedGames] = useState<Record<string, boolean>>({});
   const groupedServers = useMemo(() => groupServersByGame(orderedServers), [orderedServers]);
 
   useEffect(() => {
@@ -610,59 +611,28 @@ function ServersPanel({
         </div>
         <div className="divide-y divide-white/10">
           {groupedServers.map((group) => (
-            <section
+            <GameServerGroup
               key={group.gameKey}
-              className={`bg-[#081321]/40 transition ${draggedGameKey === group.gameKey ? "opacity-60" : ""}`}
-              onDragOver={(event) => {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = "move";
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                moveDraggedGroup(group.gameKey);
-              }}
-            >
-              <div
-                className="flex items-center gap-3 border-b border-white/10 bg-white/[0.035] px-4 py-3"
-                draggable
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = "move";
-                  setDraggedGameKey(group.gameKey);
-                }}
-                onDragEnd={() => setDraggedGameKey("")}
-              >
-                <span
-                  className="hidden h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-md border border-white/10 text-neutral-500 transition hover:bg-white/5 hover:text-neutral-200 active:cursor-grabbing lg:flex"
-                  title="Drag game group to reorder"
-                >
-                  <GripVertical className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-cyan-100">
-                    {group.label}
-                  </h2>
-                  <p className="text-xs text-neutral-500">
-                    {group.servers.length} {group.servers.length === 1 ? "server" : "servers"}
-                  </p>
-                </div>
-              </div>
-              <div className="divide-y divide-white/10">
-                {group.servers.map((server) => (
-                  <ServerRow
-                    key={server.id}
-                    server={server}
-                    isAdmin={isAdmin}
-                    reload={reload}
-                    setMessage={setMessage}
-                    draggable
-                    dragging={draggedServerId === server.id}
-                    onDragStart={() => setDraggedServerId(server.id)}
-                    onDragEnd={() => setDraggedServerId("")}
-                    onDropOnRow={() => moveDraggedServer(server.id)}
-                  />
-                ))}
-              </div>
-            </section>
+              group={group}
+              collapsed={Boolean(collapsedGames[group.gameKey])}
+              dragging={draggedGameKey === group.gameKey}
+              draggedServerId={draggedServerId}
+              isAdmin={isAdmin}
+              reload={reload}
+              setMessage={setMessage}
+              onToggle={() =>
+                setCollapsedGames((current) => ({
+                  ...current,
+                  [group.gameKey]: !current[group.gameKey],
+                }))
+              }
+              onGroupDragStart={() => setDraggedGameKey(group.gameKey)}
+              onGroupDragEnd={() => setDraggedGameKey("")}
+              onGroupDrop={() => moveDraggedGroup(group.gameKey)}
+              onServerDragStart={(serverId) => setDraggedServerId(serverId)}
+              onServerDragEnd={() => setDraggedServerId("")}
+              onServerDrop={moveDraggedServer}
+            />
           ))}
         </div>
       </div>
@@ -672,6 +642,106 @@ function ServersPanel({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function GameServerGroup({
+  group,
+  collapsed,
+  dragging,
+  draggedServerId,
+  isAdmin,
+  reload,
+  setMessage,
+  onToggle,
+  onGroupDragStart,
+  onGroupDragEnd,
+  onGroupDrop,
+  onServerDragStart,
+  onServerDragEnd,
+  onServerDrop,
+}: {
+  group: ReturnType<typeof groupServersByGame>[number];
+  collapsed: boolean;
+  dragging: boolean;
+  draggedServerId: string;
+  isAdmin: boolean;
+  reload: () => Promise<void>;
+  setMessage: (message: string) => void;
+  onToggle: () => void;
+  onGroupDragStart: () => void;
+  onGroupDragEnd: () => void;
+  onGroupDrop: () => void;
+  onServerDragStart: (serverId: string) => void;
+  onServerDragEnd: () => void;
+  onServerDrop: (serverId: string) => void;
+}) {
+  return (
+    <section
+      className={`bg-[#081321]/40 transition ${dragging ? "opacity-60" : ""}`}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        onGroupDrop();
+      }}
+    >
+      <div
+        className="flex items-center gap-3 border-b border-white/10 bg-white/[0.035] px-4 py-3"
+        draggable
+        onDragStart={(event) => {
+          event.dataTransfer.effectAllowed = "move";
+          onGroupDragStart();
+        }}
+        onDragEnd={onGroupDragEnd}
+      >
+        <span
+          className="hidden h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-md border border-white/10 text-neutral-500 transition hover:bg-white/5 hover:text-neutral-200 active:cursor-grabbing lg:flex"
+          title="Drag game group to reorder"
+        >
+          <GripVertical className="h-4 w-4" />
+        </span>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          <ChevronDown className={`h-4 w-4 shrink-0 text-neutral-500 transition ${collapsed ? "-rotate-90" : ""}`} />
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-cyan-100">
+              {group.label}
+            </h2>
+            <p className="text-xs text-neutral-500">
+              {group.servers.length} {group.servers.length === 1 ? "server" : "servers"}
+            </p>
+          </div>
+        </button>
+      </div>
+      {!collapsed ? (
+        <div className="divide-y divide-white/10">
+          {group.servers.map((server) => (
+            <section
+              key={server.id}
+              className="contents"
+            >
+              <ServerRow
+                server={server}
+                isAdmin={isAdmin}
+                reload={reload}
+                setMessage={setMessage}
+                draggable
+                dragging={draggedServerId === server.id}
+                onDragStart={() => onServerDragStart(server.id)}
+                onDragEnd={onServerDragEnd}
+                onDropOnRow={() => onServerDrop(server.id)}
+              />
+            </section>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
