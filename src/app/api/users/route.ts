@@ -56,10 +56,17 @@ export async function POST(request: Request) {
     }
 
     try {
-      await provisionSftpUser({
+      const sftpResult = await provisionSftpUser({
         username: parsed.data.sftpUsername,
         password: parsed.data.sftpPassword,
       });
+
+      if (sftpResult.skipped) {
+        return NextResponse.json(
+          { error: "SFTP provisioning is disabled. Set SFTP_USER_PROVISIONING_ENABLED=true in .env." },
+          { status: 400 },
+        );
+      }
     } catch (error) {
       return NextResponse.json(
         { error: error instanceof Error ? error.message : "Could not create SFTP user." },
