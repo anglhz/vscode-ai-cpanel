@@ -768,11 +768,9 @@ function PlayersPanel({
         <p className="mt-3 truncate text-sm text-neutral-400">{stripCodColors(players.hostname)}</p>
       ) : null}
 
-      {error ? <p className="mt-3 text-sm text-red-200">{error}</p> : null}
+      {isVoice ? <TeamSpeakExternalViewer /> : null}
 
-      {isVoice && players?.channels ? (
-        <TeamSpeakViewer channels={players.channels} />
-      ) : null}
+      {error ? <p className="mt-3 text-sm text-red-200">{error}</p> : null}
 
       {!isVoice && players && players.players.length > 0 ? (
         <div className="mt-4 overflow-hidden rounded-md border border-white/10">
@@ -796,52 +794,41 @@ function PlayersPanel({
         </div>
       ) : null}
 
-      {players && players.players.length === 0 && (!isVoice || !players.channels?.length) ? (
+      {players && players.players.length === 0 && !isVoice ? (
         <p className="mt-4 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-400">
-          {isVoice ? "No clients connected right now." : "No players online right now."}
+          No players online right now.
         </p>
       ) : null}
     </section>
   );
 }
 
-function TeamSpeakViewer({ channels }: { channels: NonNullable<ServerPlayersDto["channels"]> }) {
-  const orderedChannels = [...channels].sort((left, right) => {
-    const leftParent = Number(left.parentId);
-    const rightParent = Number(right.parentId);
+function TeamSpeakExternalViewer() {
+  useEffect(() => {
+    const viewerUrl =
+      "https://www.tsviewer.com/ts3viewer.php?ID=1131191&text=757575&text_size=12&text_family=1&text_s_color=000000&text_s_weight=normal&text_s_style=normal&text_s_variant=normal&text_s_decoration=none&text_i_color=&text_i_weight=normal&text_i_style=normal&text_i_variant=normal&text_i_decoration=none&text_c_color=&text_c_weight=normal&text_c_style=normal&text_c_variant=normal&text_c_decoration=none&text_u_color=000000&text_u_weight=normal&text_u_style=normal&text_u_variant=normal&text_u_decoration=none&text_s_color_h=&text_s_weight_h=bold&text_s_style_h=normal&text_s_variant_h=normal&text_s_decoration_h=none&text_i_color_h=000000&text_i_weight_h=bold&text_i_style_h=normal&text_i_variant_h=normal&text_i_decoration_h=none&text_c_color_h=&text_c_weight_h=normal&text_c_style_h=normal&text_c_variant_h=normal&text_c_decoration_h=none&text_u_color_h=&text_u_weight_h=bold&text_u_style_h=normal&text_u_variant_h=normal&text_u_decoration_h=none&iconset=default";
 
-    if (leftParent !== rightParent) {
-      return leftParent - rightParent;
+    function initViewer() {
+      const display = (window as Window & { ts3v_display?: { init: (url: string, id: number, height: number) => void } })
+        .ts3v_display;
+      display?.init(viewerUrl, 1131191, 100);
     }
 
-    return Number(left.order) - Number(right.order);
-  });
+    if (document.querySelector('script[src="https://static.tsviewer.com/short_expire/js/ts3viewer_loader.js"]')) {
+      initViewer();
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://static.tsviewer.com/short_expire/js/ts3viewer_loader.js";
+    script.async = true;
+    script.onload = initViewer;
+    document.body.appendChild(script);
+  }, []);
 
   return (
-    <div className="mt-4 max-h-80 overflow-y-auto rounded-md border border-white/10 bg-black/10">
-      {orderedChannels.map((channel) => (
-        <div key={channel.id} className="border-b border-white/10 px-3 py-2 last:border-b-0">
-          <div className="flex items-center justify-between gap-3">
-            <p className="truncate text-sm font-semibold text-cyan-100">{channel.name}</p>
-            <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-xs text-neutral-400">
-              {channel.clients.length}
-            </span>
-          </div>
-          {channel.clients.length > 0 ? (
-            <div className="mt-2 space-y-1">
-              {channel.clients.map((client) => (
-                <div
-                  key={`${channel.id}-${client.name}`}
-                  className="flex items-center justify-between gap-3 rounded-md bg-white/[0.035] px-2 py-1.5 text-sm text-neutral-200"
-                >
-                  <span className="truncate">{client.name}</span>
-                  {client.ping ? <span className="font-mono text-xs text-neutral-500">{client.ping} ms</span> : null}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ))}
+    <div className="mt-4 rounded-md border border-white/10 bg-white/[0.03] p-3">
+      <div id="ts3viewer_1131191" />
     </div>
   );
 }
