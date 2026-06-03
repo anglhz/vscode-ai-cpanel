@@ -8,6 +8,10 @@ const ALLOWED_ACTIONS = ["start", "stop", "restart"] as const;
 const SERVICE_NAME_PATTERN = /^[a-zA-Z0-9_.@:-]+\.service$/;
 const BINARY_NAME_PATTERN = /^[a-zA-Z0-9_.\/-]+$/;
 const PATH_SEGMENT_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const SUDO_MKDIR = "/usr/bin/mkdir";
+const SUDO_CHOWN = "/usr/bin/chown";
+const SUDO_SYSTEMCTL = "/usr/bin/systemctl";
+const SUDO_TEE = "/usr/bin/tee";
 
 export type ServerAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -85,7 +89,7 @@ function getWorkingDirectoryFromExecStart(execStart: string) {
 
 async function sudoWriteFile(filePath: string, content: string) {
   await new Promise<void>((resolve, reject) => {
-    const child = spawn("sudo", ["tee", filePath], {
+    const child = spawn("sudo", [SUDO_TEE, filePath], {
       stdio: ["pipe", "ignore", "pipe"],
       windowsHide: true,
     });
@@ -115,7 +119,7 @@ export async function runSystemdAction(serviceName: string, action: ServerAction
 
   // Security boundary: only call sudo/systemctl with fixed argv values from
   // database configuration and a strict action whitelist. No shell is involved.
-  await execFileAsync("sudo", ["systemctl", action, serviceName], {
+  await execFileAsync("sudo", [SUDO_SYSTEMCTL, action, serviceName], {
     timeout: 30_000,
     windowsHide: true,
   });
@@ -137,12 +141,12 @@ export async function applySystemdExecStart(serviceName: string, execStart: stri
   const workingDirectory = getWorkingDirectoryFromExecStart(execStart);
   const content = `[Service]\nWorkingDirectory=${workingDirectory}\nExecStart=\nExecStart=${execStart}\n`;
 
-  await execFileAsync("sudo", ["mkdir", "-p", overrideDir], {
+  await execFileAsync("sudo", [SUDO_MKDIR, "-p", overrideDir], {
     timeout: 10_000,
     windowsHide: true,
   });
   await sudoWriteFile(overridePath, content);
-  await execFileAsync("sudo", ["systemctl", "daemon-reload"], {
+  await execFileAsync("sudo", [SUDO_SYSTEMCTL, "daemon-reload"], {
     timeout: 30_000,
     windowsHide: true,
   });
@@ -228,28 +232,28 @@ export async function provisionSystemdServer(config: {
   const servicePath = `${getSystemdUnitDir()}/${built.serviceName}`;
   const owner = `${getGameServerUser()}:${getGameServerGroup()}`;
 
-  await execFileAsync("sudo", ["mkdir", "-p", built.serverDir], {
+  await execFileAsync("sudo", [SUDO_MKDIR, "-p", built.serverDir], {
     timeout: 10_000,
     windowsHide: true,
   });
-  await execFileAsync("sudo", ["mkdir", "-p", built.workingDirectory], {
+  await execFileAsync("sudo", [SUDO_MKDIR, "-p", built.workingDirectory], {
     timeout: 10_000,
     windowsHide: true,
   });
-  await execFileAsync("sudo", ["chown", owner, built.serverDir], {
+  await execFileAsync("sudo", [SUDO_CHOWN, owner, built.serverDir], {
     timeout: 10_000,
     windowsHide: true,
   });
-  await execFileAsync("sudo", ["chown", owner, built.workingDirectory], {
+  await execFileAsync("sudo", [SUDO_CHOWN, owner, built.workingDirectory], {
     timeout: 10_000,
     windowsHide: true,
   });
   await sudoWriteFile(servicePath, built.serviceContent);
-  await execFileAsync("sudo", ["systemctl", "daemon-reload"], {
+  await execFileAsync("sudo", [SUDO_SYSTEMCTL, "daemon-reload"], {
     timeout: 30_000,
     windowsHide: true,
   });
-  await execFileAsync("sudo", ["systemctl", "enable", built.serviceName], {
+  await execFileAsync("sudo", [SUDO_SYSTEMCTL, "enable", built.serviceName], {
     timeout: 30_000,
     windowsHide: true,
   });
