@@ -1,12 +1,12 @@
 import { execFile } from "node:child_process";
 import { spawn } from "node:child_process";
 import { promisify } from "node:util";
+import { GAME_PROFILES, isGameKey, type GameKey } from "@/lib/game-profiles";
 
 const execFileAsync = promisify(execFile);
 const ALLOWED_ACTIONS = ["start", "stop", "restart"] as const;
 const SERVICE_NAME_PATTERN = /^[a-zA-Z0-9_.@:-]+\.service$/;
-const BINARY_NAME_PATTERN = /^[a-zA-Z0-9_.-]+$/;
-const GAME_KEY_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const BINARY_NAME_PATTERN = /^[a-zA-Z0-9_.\/-]+$/;
 const PATH_SEGMENT_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export type ServerAction = (typeof ALLOWED_ACTIONS)[number];
@@ -39,6 +39,10 @@ function getGameServerUser() {
   return process.env.GAME_SERVER_RUN_USER || "cod1";
 }
 
+function getGameServerGroup() {
+  return process.env.GAME_SERVER_RUN_GROUP || getGameServerUser();
+}
+
 function assertSafePort(port: number) {
   if (!Number.isInteger(port) || port < 1_024 || port > 65_535) {
     throw new Error("Invalid server port.");
@@ -46,13 +50,13 @@ function assertSafePort(port: number) {
 }
 
 function assertSafeBinaryName(binaryName: string) {
-  if (!BINARY_NAME_PATTERN.test(binaryName)) {
+  if (!BINARY_NAME_PATTERN.test(binaryName) || binaryName.includes("..") || binaryName.startsWith("/")) {
     throw new Error("Invalid server binary name.");
   }
 }
 
-function assertSafeGameKey(game: string) {
-  if (!GAME_KEY_PATTERN.test(game)) {
+function assertSafeGameKey(game: string): asserts game is GameKey {
+  if (!isGameKey(game)) {
     throw new Error("Invalid game key.");
   }
 }
@@ -171,28 +175,40 @@ export function buildProvisionedServerConfig({
   }
 
   const root = getGameServersRoot();
+  const profile = GAME_PROFILES[game];
   const runUser = getGameServerUser();
+  const runGroup = getGameServerGroup();
   const serverDir = `${root}/${ownerFolder}/${game}/${port}`;
   const serviceName = `${game}-${port}.service`;
-  const execStart = `${serverDir}/${binaryName} +set dedicated 2 +set net_port ${port} +set sv_maxclients ${maxClients} +map_rotate`;
+  const effectiveBinaryName = binaryName || profile.defaultBinaryName;
+  const binaryPath = `${serverDir}/${effectiveBinaryName}`;
+  const workingDirectory = getWorkingDirectoryFromExecStart(binaryPath);
+  const execStart =
+    game === "ts3"
+      ? `${binaryPath} start default_voice_port=${port} query_port=10011 filetransfer_port=30033`
+      : `${binaryPath} +set dedicated 2 +set net_port ${port} +set sv_maxclients ${maxClients} +map_rotate`;
+  const serviceExtra =
+    game === "ts3"
+      ? `Environment=TS3SERVER_LICENSE=accept\nExecStop=${binaryPath} stop\nExecReload=${binaryPath} restart\n`
+      : "";
   const serviceContent = `[Unit]
 Description=${name}
 After=network.target
 
 [Service]
-Type=simple
+Type=${profile.serviceType}
 User=${runUser}
-Group=${runUser}
-WorkingDirectory=${serverDir}
+Group=${runGroup}
+WorkingDirectory=${workingDirectory}
 ExecStart=${execStart}
-Restart=on-failure
+${serviceExtra}Restart=on-failure
 RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
 `;
 
-  return { serverDir, serviceName, execStart, serviceContent };
+  return { serverDir, workingDirectory, serviceName, execStart, serviceContent };
 }
 
 export async function provisionSystemdServer(config: {
@@ -210,13 +226,21 @@ export async function provisionSystemdServer(config: {
   }
 
   const servicePath = `${getSystemdUnitDir()}/${built.serviceName}`;
-  const owner = `${getGameServerUser()}:${getGameServerUser()}`;
+  const owner = `${getGameServerUser()}:${getGameServerGroup()}`;
 
   await execFileAsync("sudo", ["mkdir", "-p", built.serverDir], {
     timeout: 10_000,
     windowsHide: true,
   });
+  await execFileAsync("sudo", ["mkdir", "-p", built.workingDirectory], {
+    timeout: 10_000,
+    windowsHide: true,
+  });
   await execFileAsync("sudo", ["chown", owner, built.serverDir], {
+    timeout: 10_000,
+    windowsHide: true,
+  });
+  await execFileAsync("sudo", ["chown", owner, built.workingDirectory], {
     timeout: 10_000,
     windowsHide: true,
   });

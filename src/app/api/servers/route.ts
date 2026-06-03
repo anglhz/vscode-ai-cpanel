@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdmin, requireUser } from "@/lib/auth";
+import { GAME_KEYS } from "@/lib/game-profiles";
 import { prisma } from "@/lib/prisma";
 import { serializeServer } from "@/lib/serializers";
 import { provisionSystemdServer } from "@/lib/systemd";
@@ -11,10 +12,10 @@ const serverSchema = z.object({
   name: z.string().min(2),
   description: z.string().min(2),
   ownerFolder: z.string().min(1).max(48).regex(/^[a-zA-Z0-9_-]+$/),
-  game: z.string().min(2).max(24).regex(/^[a-zA-Z0-9_-]+$/),
+  game: z.enum(GAME_KEYS),
   port: z.coerce.number().int().min(1024).max(65535),
   maxClients: z.coerce.number().int().min(1).max(128).default(12),
-  binaryName: z.string().min(1).max(80).regex(/^[a-zA-Z0-9_.-]+$/).default("cod_lnxded"),
+  binaryName: z.string().min(1).max(120).regex(/^[a-zA-Z0-9_.\/-]+$/),
   status: z.enum(serverStatuses).optional(),
 });
 

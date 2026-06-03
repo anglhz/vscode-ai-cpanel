@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { GAME_KEYS } from "@/lib/game-profiles";
 
 const execFileAsync = promisify(execFile);
 const USERNAME_PATTERN = /^[a-zA-Z0-9_-]{2,32}$/;
@@ -9,7 +10,7 @@ function getGameServersRoot() {
 }
 
 function getGameServerGroup() {
-  return process.env.GAME_SERVER_RUN_USER || "cod1";
+  return process.env.GAME_SERVER_RUN_GROUP || process.env.GAME_SERVER_RUN_USER || "cod1";
 }
 
 function getSftpGroup() {
@@ -71,7 +72,7 @@ export async function provisionSftpUser({
 
   const root = getGameServersRoot();
   const userRoot = `${root}/${username}`;
-  const defaultGameDir = `${userRoot}/cod1`;
+  const gameDirs = GAME_KEYS.map((game) => `${userRoot}/${game}`);
   const sftpGroup = getSftpGroup();
   const gameGroup = getGameServerGroup();
 
@@ -84,11 +85,11 @@ export async function provisionSftpUser({
 
   await sudoWithInput("chpasswd", [], `${username}:${password}`);
 
-  await sudo("mkdir", ["-p", defaultGameDir]);
+  await sudo("mkdir", ["-p", ...gameDirs]);
   await sudo("chown", ["root:root", userRoot]);
   await sudo("chmod", ["755", userRoot]);
-  await sudo("chown", ["-R", `${username}:${gameGroup}`, defaultGameDir]);
-  await sudo("chmod", ["-R", "775", defaultGameDir]);
+  await sudo("chown", ["-R", `${username}:${gameGroup}`, ...gameDirs]);
+  await sudo("chmod", ["-R", "775", ...gameDirs]);
 
   return { skipped: false };
 }

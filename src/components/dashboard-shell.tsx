@@ -75,6 +75,12 @@ const statusStyle: Record<ServerStatus, string> = {
   UNKNOWN: "border-white/10 bg-white/5 text-neutral-300",
 };
 const SERVER_PUBLIC_IP = process.env.NEXT_PUBLIC_SERVER_PUBLIC_IP ?? "144.76.41.252";
+const SERVER_GAME_OPTIONS = [
+  { value: "cod1", label: "Call of Duty 1", binary: "cod_lnxded" },
+  { value: "cod2", label: "Call of Duty 2", binary: "cod2_lnxded" },
+  { value: "cod4", label: "Call of Duty 4", binary: "cod4x18_dedrun" },
+  { value: "ts3", label: "TeamSpeak 3", binary: "teamspeak3-server_linux_amd64/ts3server_startscript.sh" },
+] as const;
 
 export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
   const [view, setView] = useState<"servers" | "users">("servers");
@@ -944,6 +950,9 @@ function ServerForm({
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
 }) {
+  const [selectedGame, setSelectedGame] = useState<(typeof SERVER_GAME_OPTIONS)[number]["value"]>("cod1");
+  const selectedGameOption = SERVER_GAME_OPTIONS.find((game) => game.value === selectedGame) ?? SERVER_GAME_OPTIONS[0];
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
@@ -964,6 +973,7 @@ function ServerForm({
 
     if (response.ok) {
       form.reset();
+      setSelectedGame("cod1");
       setMessage("Server created.");
       await reload();
     } else {
@@ -973,11 +983,22 @@ function ServerForm({
 
   return (
     <form onSubmit={submit} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_140px_120px_140px_auto]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_140px_150px_120px_auto]">
         <Input name="name" placeholder="Server name" />
         <Input name="description" placeholder="Description" />
         <Input name="ownerFolder" placeholder="mcfly" />
-        <Input name="game" placeholder="cod1" defaultValue="cod1" />
+        <select
+          name="game"
+          value={selectedGame}
+          onChange={(event) => setSelectedGame(event.target.value as typeof selectedGame)}
+          className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none ring-cyan-400/20 transition focus:border-cyan-300 focus:ring-4"
+        >
+          {SERVER_GAME_OPTIONS.map((game) => (
+            <option key={game.value} value={game.value}>
+              {game.label}
+            </option>
+          ))}
+        </select>
         <Input name="port" type="number" placeholder="28960" />
         <button className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
           <Plus className="h-4 w-4" />
@@ -995,7 +1016,7 @@ function ServerForm({
           <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
             Binary
           </span>
-          <Input name="binaryName" placeholder="cod_lnxded" defaultValue="cod_lnxded" />
+          <Input name="binaryName" placeholder={selectedGameOption.binary} defaultValue={selectedGameOption.binary} key={selectedGame} />
         </label>
       </div>
     </form>

@@ -1,3 +1,5 @@
+import { GAME_PROFILES, isGameKey } from "@/lib/game-profiles";
+
 const SERVICE_PORTS: Record<string, number> = {
   "codbase-public.service": 28960,
   "codbase-soloq-1.service": 28971,
@@ -12,7 +14,10 @@ export function getExecStartBase(systemdServiceName: string) {
   const port = SERVICE_PORTS[systemdServiceName];
   const folder = systemdServiceName.replace(/\.service$/, "");
   const genericPort = systemdServiceName.match(/^game-server-(\d+)\.service$/)?.[1];
-  const gamePort = systemdServiceName.match(/^[a-zA-Z0-9_-]+-(\d+)\.service$/)?.[1];
+  const gameMatch = systemdServiceName.match(/^([a-zA-Z0-9_-]+)-(\d+)\.service$/);
+  const game = gameMatch?.[1] ?? "";
+  const gamePort = gameMatch?.[2];
+  const binaryName = isGameKey(game) ? GAME_PROFILES[game].defaultBinaryName : "server_binary";
 
   if (port) {
     return `/opt/game-servers/${folder}/cod_lnxded +set dedicated 2 +set net_port ${port} +set sv_maxclients ${DEFAULT_MAX_CLIENTS} +map_rotate`;
@@ -23,7 +28,7 @@ export function getExecStartBase(systemdServiceName: string) {
   }
 
   if (gamePort) {
-    return `/opt/game-servers/${gamePort}/cod_lnxded +set dedicated 2 +set net_port ${gamePort} +set sv_maxclients ${DEFAULT_MAX_CLIENTS} +map_rotate`;
+    return `/opt/game-servers/${gamePort}/${binaryName} +set dedicated 2 +set net_port ${gamePort} +set sv_maxclients ${DEFAULT_MAX_CLIENTS} +map_rotate`;
   }
 
   return `/opt/game-servers/${folder}/server_binary`;
