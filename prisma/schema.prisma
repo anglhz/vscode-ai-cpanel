@@ -30,6 +30,7 @@ model GameServer {
   rconPassword       String             @default("")
   extraParameters    String             @default("")
   status             String             @default("UNKNOWN")
+  displayOrder       Int                @default(0)
   assignedUsers      UserServerAccess[]
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt

@@ -31,6 +31,7 @@ async function main() {
       "rconPassword" TEXT NOT NULL DEFAULT '',
       "extraParameters" TEXT NOT NULL DEFAULT '',
       "status" TEXT NOT NULL DEFAULT 'UNKNOWN',
+      "displayOrder" INTEGER NOT NULL DEFAULT 0,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL
     );
@@ -60,6 +61,7 @@ async function main() {
   await addColumnIfMissing("configFile", `TEXT NOT NULL DEFAULT ''`);
   await addColumnIfMissing("rconPassword", `TEXT NOT NULL DEFAULT ''`);
   await addColumnIfMissing("extraParameters", `TEXT NOT NULL DEFAULT ''`);
+  await addColumnIfMissing("displayOrder", `INTEGER NOT NULL DEFAULT 0`);
 }
 
 async function addColumnIfMissing(name: string, definition: string) {

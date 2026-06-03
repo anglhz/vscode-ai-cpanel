@@ -12,6 +12,7 @@ type ServerWithAccess = {
   rconPassword: string;
   extraParameters: string;
   status: string;
+  displayOrder: number;
   assignedUsers?: { userId: string }[];
 };
 
@@ -21,6 +22,7 @@ export function serializeServer(server: ServerWithAccess, role?: string) {
     name: server.name,
     description: server.description,
     status: server.status,
+    displayOrder: server.displayOrder,
     systemdServiceName: role === "ADMIN" ? server.systemdServiceName : undefined,
     execStart: server.execStart,
     execStartBase: getExecStartBase(server.systemdServiceName),

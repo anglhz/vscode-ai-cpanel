@@ -8,6 +8,7 @@ import {
   ChevronDown,
   CirclePower,
   Gauge,
+  GripVertical,
   LayoutDashboard,
   LogOut,
   Plus,
@@ -30,6 +31,7 @@ type GameServerDto = {
   name: string;
   description: string;
   status: ServerStatus;
+  displayOrder: number;
   systemdServiceName?: string;
   execStart: string;
   execStartBase: string | null;
@@ -527,6 +529,53 @@ function ServersPanel({
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
 }) {
+  const [orderedServers, setOrderedServers] = useState(servers);
+  const [draggedServerId, setDraggedServerId] = useState("");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setOrderedServers(servers), 0);
+    return () => window.clearTimeout(timer);
+  }, [servers]);
+
+  async function saveOrder(nextServers: GameServerDto[]) {
+    if (!isAdmin) {
+      return;
+    }
+
+    const response = await fetch("/api/servers/reorder", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ serverIds: nextServers.map((server) => server.id) }),
+    });
+
+    if (response.ok) {
+      setMessage("Server order updated.");
+      await reload();
+    } else {
+      setMessage("Could not update server order.");
+      setOrderedServers(servers);
+    }
+  }
+
+  function moveDraggedServer(targetServerId: string) {
+    if (!isAdmin || !draggedServerId || draggedServerId === targetServerId) {
+      return;
+    }
+
+    const fromIndex = orderedServers.findIndex((server) => server.id === draggedServerId);
+    const toIndex = orderedServers.findIndex((server) => server.id === targetServerId);
+
+    if (fromIndex < 0 || toIndex < 0) {
+      return;
+    }
+
+    const nextServers = [...orderedServers];
+    const [movedServer] = nextServers.splice(fromIndex, 1);
+    nextServers.splice(toIndex, 0, movedServer);
+    setOrderedServers(nextServers);
+    void saveOrder(nextServers);
+  }
+
   return (
     <div className="space-y-6">
       {isAdmin ? <ServerForm reload={reload} setMessage={setMessage} /> : null}
@@ -537,13 +586,18 @@ function ServersPanel({
           <span className="text-right">Operations</span>
         </div>
         <div className="divide-y divide-white/10">
-          {servers.map((server) => (
+          {orderedServers.map((server) => (
             <ServerRow
               key={server.id}
               server={server}
               isAdmin={isAdmin}
               reload={reload}
               setMessage={setMessage}
+              draggable={isAdmin}
+              dragging={draggedServerId === server.id}
+              onDragStart={() => setDraggedServerId(server.id)}
+              onDragEnd={() => setDraggedServerId("")}
+              onDropOnRow={() => moveDraggedServer(server.id)}
             />
           ))}
         </div>
@@ -562,11 +616,21 @@ function ServerRow({
   isAdmin,
   reload,
   setMessage,
+  draggable,
+  dragging,
+  onDragStart,
+  onDragEnd,
+  onDropOnRow,
 }: {
   server: GameServerDto;
   isAdmin: boolean;
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
+  draggable: boolean;
+  dragging: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDropOnRow: () => void;
 }) {
   const [busy, setBusy] = useState("");
   const [players, setPlayers] = useState<ServerPlayersDto | null>(null);
@@ -615,7 +679,25 @@ function ServerRow({
 
   return (
     <details
-      className="group bg-[#0d1624]/45 open:bg-[linear-gradient(135deg,rgba(15,23,42,.88),rgba(8,47,73,.55))]"
+      className={`group bg-[#0d1624]/45 transition open:bg-[linear-gradient(135deg,rgba(15,23,42,.88),rgba(8,47,73,.55))] ${
+        dragging ? "opacity-50" : ""
+      }`}
+      draggable={draggable}
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = "move";
+        onDragStart();
+      }}
+      onDragEnd={onDragEnd}
+      onDragOver={(event) => {
+        if (draggable) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+        }
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        onDropOnRow();
+      }}
       onToggle={(event) => {
         if (event.currentTarget.open && !players && !playersLoading) {
           void loadPlayers();
@@ -624,6 +706,14 @@ function ServerRow({
     >
       <summary className="grid cursor-pointer gap-3 px-4 py-3 transition hover:bg-white/[0.045] lg:grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.7fr)_minmax(230px,0.9fr)] lg:items-center">
         <div className="flex min-w-0 items-center gap-3">
+          {draggable ? (
+            <span
+              className="hidden h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-md border border-white/10 text-neutral-500 transition hover:bg-white/5 hover:text-neutral-200 active:cursor-grabbing lg:flex"
+              title="Drag to reorder"
+            >
+              <GripVertical className="h-4 w-4" />
+            </span>
+          ) : null}
           <ChevronDown className="h-4 w-4 shrink-0 text-neutral-500 transition group-open:rotate-180" />
           <span
             className={`h-3.5 w-3.5 shrink-0 rounded-full ring-4 ${

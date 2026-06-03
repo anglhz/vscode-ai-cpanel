@@ -25,11 +25,11 @@ export async function GET() {
     user.role === "ADMIN"
       ? await prisma.gameServer.findMany({
           include: { assignedUsers: true },
-          orderBy: { name: "asc" },
+          orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
         })
       : await prisma.gameServer.findMany({
           where: { assignedUsers: { some: { userId: user.id } } },
-          orderBy: { name: "asc" },
+          orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
         });
 
   return NextResponse.json({
@@ -53,6 +53,7 @@ export async function POST(request: Request) {
     maxClients: parsed.data.maxClients,
     binaryName: parsed.data.binaryName,
   });
+  const nextDisplayOrder = await prisma.gameServer.count();
 
   const server = await prisma.gameServer.create({
     data: {
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
       systemdServiceName: provisioned.serviceName,
       execStart: provisioned.execStart,
       status: parsed.data.status ?? "UNKNOWN",
+      displayOrder: nextDisplayOrder,
     },
     include: { assignedUsers: true },
   });
