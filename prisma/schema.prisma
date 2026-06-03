@@ -37,10 +37,11 @@ model GameServer {
 }
 
 model UserServerAccess {
-  userId   String
-  serverId String
-  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  server   GameServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  userId       String
+  serverId     String
+  displayOrder Int        @default(0)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  server       GameServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
 
   @@id([userId, serverId])
 }

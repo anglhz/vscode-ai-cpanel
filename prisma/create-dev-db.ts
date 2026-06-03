@@ -41,6 +41,7 @@ async function main() {
     CREATE TABLE IF NOT EXISTS "UserServerAccess" (
       "userId" TEXT NOT NULL,
       "serverId" TEXT NOT NULL,
+      "displayOrder" INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY ("userId", "serverId"),
       CONSTRAINT "UserServerAccess_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
       CONSTRAINT "UserServerAccess_serverId_fkey" FOREIGN KEY ("serverId") REFERENCES "GameServer" ("id") ON DELETE CASCADE ON UPDATE CASCADE
@@ -62,12 +63,25 @@ async function main() {
   await addColumnIfMissing("rconPassword", `TEXT NOT NULL DEFAULT ''`);
   await addColumnIfMissing("extraParameters", `TEXT NOT NULL DEFAULT ''`);
   await addColumnIfMissing("displayOrder", `INTEGER NOT NULL DEFAULT 0`);
+  await addAccessColumnIfMissing("displayOrder", `INTEGER NOT NULL DEFAULT 0`);
 }
 
 async function addColumnIfMissing(name: string, definition: string) {
   try {
     await prisma.$executeRawUnsafe(`
       ALTER TABLE "GameServer" ADD COLUMN "${name}" ${definition};
+    `);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("duplicate column name")) {
+      throw error;
+    }
+  }
+}
+
+async function addAccessColumnIfMissing(name: string, definition: string) {
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "UserServerAccess" ADD COLUMN "${name}" ${definition};
     `);
   } catch (error) {
     if (!(error instanceof Error) || !error.message.includes("duplicate column name")) {

@@ -21,20 +21,28 @@ const serverSchema = z.object({
 
 export async function GET() {
   const user = await requireUser();
-  const servers =
-    user.role === "ADMIN"
-      ? await prisma.gameServer.findMany({
-          include: { assignedUsers: true },
-          orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
-        })
-      : await prisma.gameServer.findMany({
-          where: { assignedUsers: { some: { userId: user.id } } },
-          orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
-        });
+  const servers = await getVisibleServers(user);
 
   return NextResponse.json({
     servers: servers.map((server) => serializeServer(server, user.role)),
   });
+}
+
+async function getVisibleServers(user: Awaited<ReturnType<typeof requireUser>>) {
+  if (user.role === "ADMIN") {
+    return prisma.gameServer.findMany({
+      include: { assignedUsers: true },
+      orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+    });
+  }
+
+  const accessRows = await prisma.userServerAccess.findMany({
+    where: { userId: user.id },
+    include: { server: { include: { assignedUsers: true } } },
+    orderBy: [{ displayOrder: "asc" }, { server: { name: "asc" } }],
+  });
+
+  return accessRows.map((access) => access.server);
 }
 
 export async function POST(request: Request) {

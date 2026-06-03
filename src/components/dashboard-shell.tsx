@@ -538,10 +538,6 @@ function ServersPanel({
   }, [servers]);
 
   async function saveOrder(nextServers: GameServerDto[]) {
-    if (!isAdmin) {
-      return;
-    }
-
     const response = await fetch("/api/servers/reorder", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -558,7 +554,7 @@ function ServersPanel({
   }
 
   function moveDraggedServer(targetServerId: string) {
-    if (!isAdmin || !draggedServerId || draggedServerId === targetServerId) {
+    if (!draggedServerId || draggedServerId === targetServerId) {
       return;
     }
 
@@ -593,7 +589,7 @@ function ServersPanel({
               isAdmin={isAdmin}
               reload={reload}
               setMessage={setMessage}
-              draggable={isAdmin}
+              draggable
               dragging={draggedServerId === server.id}
               onDragStart={() => setDraggedServerId(server.id)}
               onDragEnd={() => setDraggedServerId("")}
