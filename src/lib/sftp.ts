@@ -80,10 +80,12 @@ export async function provisionSftpUser({
   await execFileAsync("id", ["-u", username]).catch(async () => {
     await sudo("useradd", ["-m", "-d", userRoot, "-s", "/usr/sbin/nologin", username]);
   });
+  await sudo("usermod", ["-d", userRoot, "-s", "/usr/sbin/nologin", username]);
   await sudo("usermod", ["-aG", sftpGroup, username]);
   await sudo("usermod", ["-aG", gameGroup, username]);
 
   await sudoWithInput("chpasswd", [], `${username}:${password}`);
+  await sudo("passwd", ["-u", username]).catch(() => undefined);
 
   await sudo("mkdir", ["-p", ...gameDirs]);
   await sudo("chown", ["root:root", userRoot]);

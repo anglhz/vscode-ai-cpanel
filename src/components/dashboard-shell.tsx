@@ -1475,6 +1475,7 @@ function UserForm({
   setMessage: (message: string) => void;
 }) {
   const [createSftpUser, setCreateSftpUser] = useState(false);
+  const [open, setOpen] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1488,46 +1489,88 @@ function UserForm({
 
     if (response.ok) {
       form.reset();
+      setCreateSftpUser(false);
+      setOpen(false);
       setMessage("User created.");
       await reload();
     } else {
-      setMessage("Could not create user.");
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setMessage(data?.error ?? "Could not create user.");
     }
   }
 
   return (
-    <form onSubmit={submit} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-      <div className="grid gap-3 md:grid-cols-4">
-        <Input name="name" placeholder="Name" />
-        <Input name="email" type="email" placeholder="Email" />
-        <Input name="password" type="password" placeholder="Password" />
-        <select name="role" className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none">
-          <option value="USER">User</option>
-          <option value="ADMIN">Admin</option>
-        </select>
-      </div>
-      <label className="mt-4 flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-neutral-200">
-        <input
-          type="checkbox"
-          name="createSftpUser"
-          checked={createSftpUser}
-          onChange={(event) => setCreateSftpUser(event.target.checked)}
-          className="h-4 w-4 accent-cyan-300"
-        />
-        Create jailed SFTP user
-      </label>
-      {createSftpUser ? (
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <Input name="sftpUsername" placeholder="SFTP username, for example mcfly" />
-          <Input name="sftpPassword" type="password" placeholder="SFTP password" />
+    <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-white">Users</p>
+          <p className="text-sm text-neutral-400">Create panel accounts, optional SFTP access, and server assignments.</p>
         </div>
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200"
+        >
+          <Plus className="h-4 w-4" />
+          Add user
+        </button>
+      </div>
+
+      {open ? (
+        <form onSubmit={submit} className="mt-4 space-y-5 border-t border-white/10 pt-4">
+          <section>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Panel account</p>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(180px,.7fr)_140px]">
+              <Input name="name" placeholder="Name" />
+              <Input name="email" type="email" placeholder="Email" />
+              <Input name="password" type="password" placeholder="Password" />
+              <select name="role" className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none">
+                <option value="USER">User</option>
+                <option value="ADMIN">Admin</option>
+              </select>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-white/10 bg-[#07111f]/70 p-3">
+            <label className="flex min-h-11 items-center gap-3 text-sm text-neutral-200">
+              <input
+                type="checkbox"
+                name="createSftpUser"
+                checked={createSftpUser}
+                onChange={(event) => setCreateSftpUser(event.target.checked)}
+                className="h-4 w-4 accent-cyan-300"
+              />
+              <span>
+                <span className="block font-semibold text-white">Create jailed SFTP user</span>
+                <span className="text-neutral-500">Creates a Linux SFTP login under /opt/game-servers/username.</span>
+              </span>
+            </label>
+            {createSftpUser ? (
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <Input name="sftpUsername" placeholder="SFTP username" />
+                <Input name="sftpPassword" type="password" placeholder="SFTP password" />
+              </div>
+            ) : null}
+          </section>
+
+          <ServerCheckboxes servers={servers} selected={[]} />
+
+          <div className="flex flex-wrap gap-2">
+            <button className="flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+              <Plus className="h-4 w-4" />
+              Create user
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="h-10 rounded-md border border-white/10 px-4 text-sm font-semibold text-neutral-300 transition hover:bg-white/5"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
       ) : null}
-      <ServerCheckboxes servers={servers} selected={[]} />
-      <button className="mt-4 flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
-        <Plus className="h-4 w-4" />
-        Create user
-      </button>
-    </form>
+    </section>
   );
 }
 
@@ -1590,20 +1633,44 @@ function UserEditor({
 }
 
 function ServerCheckboxes({ servers, selected }: { servers: GameServerDto[]; selected: string[] }) {
+  const groupedServers = groupServersByGame(servers);
+
   return (
-    <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-      {servers.map((server) => (
-        <label key={server.id} className="flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-neutral-200">
-          <input
-            type="checkbox"
-            name="serverIds"
-            value={server.id}
-            defaultChecked={selected.includes(server.id)}
-            className="h-4 w-4 accent-cyan-300"
-          />
-          {server.name}
-        </label>
-      ))}
+    <div className="mt-4 rounded-lg border border-white/10 bg-[#07111f]/70">
+      <div className="border-b border-white/10 px-3 py-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Server access</p>
+        <p className="mt-1 text-sm text-neutral-400">Assign only the servers this user should control.</p>
+      </div>
+      <div className="divide-y divide-white/10">
+        {groupedServers.map((group) => (
+          <details key={group.gameKey} className="group/server-access">
+            <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-3 text-sm text-neutral-200 transition hover:bg-white/[0.035]">
+              <span className="flex min-w-0 items-center gap-2">
+                <ChevronDown className="h-4 w-4 shrink-0 text-neutral-500 transition group-open/server-access:rotate-180" />
+                <span className="truncate font-semibold text-white">{group.label}</span>
+              </span>
+              <span className="shrink-0 text-xs text-neutral-500">{group.servers.length}</span>
+            </summary>
+            <div className="grid gap-2 px-3 pb-3 sm:grid-cols-2 xl:grid-cols-3">
+              {group.servers.map((server) => (
+                <label
+                  key={server.id}
+                  className="flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-neutral-200"
+                >
+                  <input
+                    type="checkbox"
+                    name="serverIds"
+                    value={server.id}
+                    defaultChecked={selected.includes(server.id)}
+                    className="h-4 w-4 accent-cyan-300"
+                  />
+                  <span className="truncate">{server.name}</span>
+                </label>
+              ))}
+            </div>
+          </details>
+        ))}
+      </div>
     </div>
   );
 }

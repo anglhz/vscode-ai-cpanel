@@ -55,10 +55,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "SFTP username and password are required." }, { status: 400 });
     }
 
-    await provisionSftpUser({
-      username: parsed.data.sftpUsername,
-      password: parsed.data.sftpPassword,
-    });
+    try {
+      await provisionSftpUser({
+        username: parsed.data.sftpUsername,
+        password: parsed.data.sftpPassword,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Could not create SFTP user." },
+        { status: 500 },
+      );
+    }
   }
 
   const user = await prisma.user.create({
