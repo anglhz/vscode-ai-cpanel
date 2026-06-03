@@ -598,13 +598,12 @@ function ServerRow({
 
   const address = getServerAddress(server.execStart);
   const isOffline = server.status === "OFFLINE" || server.status === "UNKNOWN";
-  const isVoiceServer = isVoiceGameServer(server);
 
   return (
     <details
       className="group bg-[#0d1624]/45 open:bg-[linear-gradient(135deg,rgba(15,23,42,.88),rgba(8,47,73,.55))]"
       onToggle={(event) => {
-        if (event.currentTarget.open && !isVoiceServer && !players && !playersLoading) {
+        if (event.currentTarget.open && !players && !playersLoading) {
           void loadPlayers();
         }
       }}
@@ -683,14 +682,12 @@ function ServerRow({
               {isAdmin && server.systemdServiceName ? server.systemdServiceName : "Assigned server"}
             </span>
           </div>
-          {!isVoiceServer ? (
-            <PlayersPanel
-              players={players}
-              loading={playersLoading}
-              error={playersError}
-              onRefresh={loadPlayers}
-            />
-          ) : null}
+          <PlayersPanel
+            players={players}
+            loading={playersLoading}
+            error={playersError}
+            onRefresh={loadPlayers}
+          />
         </div>
         <ServerConfigEditor
           server={server}
@@ -715,12 +712,13 @@ function PlayersPanel({
   onRefresh: () => Promise<void>;
 }) {
   const maxClients = players?.maxClients ? `/${players.maxClients}` : "";
+  const onlineLabel = players?.gameType === "ts3" ? "Clients online" : "Players online";
 
   return (
     <section className="rounded-lg border border-white/10 bg-[#07111f]/70 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Players online</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{onlineLabel}</p>
           <div className="mt-1 flex flex-wrap items-center gap-3">
             <p className="text-2xl font-semibold text-white">
               {players ? `${players.playerCount}${maxClients}` : loading ? "Loading..." : "0"}
@@ -778,7 +776,7 @@ function PlayersPanel({
 
       {players && players.players.length === 0 ? (
         <p className="mt-4 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-400">
-          No players online right now.
+          {players.gameType === "ts3" ? "No clients connected right now." : "No players online right now."}
         </p>
       ) : null}
     </section>
@@ -1100,7 +1098,7 @@ function ServerForm({
             </select>
             <Input name="port" type="number" placeholder="28960" />
           </div>
-          <div className={`mt-5 grid gap-5 ${isTeamspeak ? "sm:grid-cols-1 lg:max-w-xs" : "sm:grid-cols-2 lg:max-w-2xl"}`}>
+          <div className={`mt-5 grid gap-4 ${isTeamspeak ? "sm:grid-cols-1 lg:max-w-xs" : "sm:grid-cols-2 lg:max-w-xl"}`}>
             {!isTeamspeak ? (
               <label className="block">
                 <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
