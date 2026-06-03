@@ -1030,6 +1030,7 @@ function ServerForm({
   setMessage: (message: string) => void;
 }) {
   const [selectedGame, setSelectedGame] = useState<(typeof SERVER_GAME_OPTIONS)[number]["value"]>("cod1");
+  const [open, setOpen] = useState(false);
   const selectedGameOption = SERVER_GAME_OPTIONS.find((game) => game.value === selectedGame) ?? SERVER_GAME_OPTIONS[0];
   const isTeamspeak = selectedGame === "ts3";
 
@@ -1054,6 +1055,7 @@ function ServerForm({
     if (response.ok) {
       form.reset();
       setSelectedGame("cod1");
+      setOpen(false);
       setMessage("Server created.");
       await reload();
     } else {
@@ -1062,57 +1064,85 @@ function ServerForm({
   }
 
   return (
-    <form onSubmit={submit} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_140px_150px_120px_auto]">
-        <Input name="name" placeholder="Server name" />
-        <Input name="description" placeholder="Description" />
-        <Input name="ownerFolder" placeholder="Alias" />
-        <select
-          name="game"
-          value={selectedGame}
-          onChange={(event) => setSelectedGame(event.target.value as typeof selectedGame)}
-          className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none ring-cyan-400/20 transition focus:border-cyan-300 focus:ring-4"
+    <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-white">Servers</p>
+          <p className="text-sm text-neutral-400">Create a new game or voice service when needed.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200"
         >
-          {SERVER_GAME_OPTIONS.map((game) => (
-            <option key={game.value} value={game.value}>
-              {game.label}
-            </option>
-          ))}
-        </select>
-        <Input name="port" type="number" placeholder="28960" />
-        <button className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
           <Plus className="h-4 w-4" />
-          Add
+          Add server
         </button>
       </div>
-      <div className={`mt-5 grid gap-5 ${isTeamspeak ? "sm:grid-cols-1 lg:max-w-xs" : "sm:grid-cols-2 lg:max-w-2xl"}`}>
-        {!isTeamspeak ? (
-          <label className="block">
-            <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-              Max clients
-            </span>
-            <Input name="maxClients" type="number" placeholder="12" defaultValue={12} />
-          </label>
-        ) : (
-          <input type="hidden" name="maxClients" value="32" />
-        )}
-        {!isTeamspeak ? (
-          <label className="block">
-            <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-              Binary
-            </span>
-            <Input name="binaryName" placeholder={selectedGameOption.binary} defaultValue={selectedGameOption.binary} key={selectedGame} />
-          </label>
-        ) : (
-          <input type="hidden" name="binaryName" value={selectedGameOption.binary} />
-        )}
-      </div>
-      {isTeamspeak ? (
-        <p className="mt-3 text-sm text-neutral-400">
-          TeamSpeak uses the bundled start script automatically, so no startup binary is needed here.
-        </p>
+
+      {open ? (
+        <form onSubmit={submit} className="mt-4 border-t border-white/10 pt-4">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_150px_180px_120px]">
+            <Input name="name" placeholder="Server name" />
+            <Input name="description" placeholder="Description" />
+            <Input name="ownerFolder" placeholder="Alias" />
+            <select
+              name="game"
+              value={selectedGame}
+              onChange={(event) => setSelectedGame(event.target.value as typeof selectedGame)}
+              className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none ring-cyan-400/20 transition focus:border-cyan-300 focus:ring-4"
+            >
+              {SERVER_GAME_OPTIONS.map((game) => (
+                <option key={game.value} value={game.value}>
+                  {game.label}
+                </option>
+              ))}
+            </select>
+            <Input name="port" type="number" placeholder="28960" />
+          </div>
+          <div className={`mt-5 grid gap-5 ${isTeamspeak ? "sm:grid-cols-1 lg:max-w-xs" : "sm:grid-cols-2 lg:max-w-2xl"}`}>
+            {!isTeamspeak ? (
+              <label className="block">
+                <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+                  Max clients
+                </span>
+                <Input name="maxClients" type="number" placeholder="12" defaultValue={12} />
+              </label>
+            ) : (
+              <input type="hidden" name="maxClients" value="32" />
+            )}
+            {!isTeamspeak ? (
+              <label className="block">
+                <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
+                  Binary
+                </span>
+                <Input name="binaryName" placeholder={selectedGameOption.binary} defaultValue={selectedGameOption.binary} key={selectedGame} />
+              </label>
+            ) : (
+              <input type="hidden" name="binaryName" value={selectedGameOption.binary} />
+            )}
+          </div>
+          {isTeamspeak ? (
+            <p className="mt-3 text-sm text-neutral-400">
+              TeamSpeak uses the bundled start script automatically, so no startup binary is needed here.
+            </p>
+          ) : null}
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button className="flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+              <Plus className="h-4 w-4" />
+              Create server
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="h-10 rounded-md border border-white/10 px-4 text-sm font-semibold text-neutral-300 transition hover:bg-white/5"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
       ) : null}
-    </form>
+    </section>
   );
 }
 
