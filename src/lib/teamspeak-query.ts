@@ -3,6 +3,12 @@ import type { ServerPlayers } from "@/lib/game-query";
 
 const cache = new Map<string, { expiresAt: number; data: ServerPlayers }>();
 
+type TeamSpeakQueryData = {
+  serverInfo: Record<string, string>;
+  channelList: Record<string, string>[];
+  clientList: Record<string, string>[];
+};
+
 function unescapeServerQueryValue(value: string) {
   return value
     .replace(/\\s/g, " ")
@@ -27,9 +33,27 @@ function parseServerQueryFields(line: string) {
   return fields;
 }
 
+function parseServerQueryList(line: string) {
+  return line
+    .trim()
+    .split("|")
+    .filter(Boolean)
+    .map(parseServerQueryFields);
+}
+
 function numberField(fields: Record<string, string>, key: string) {
   const value = Number(fields[key]);
   return Number.isFinite(value) ? value : 0;
+}
+
+function getLineAfterCommand(lines: string[], command: string) {
+  const commandIndex = lines.findIndex((line) => line.trim() === command);
+
+  if (commandIndex < 0) {
+    return "";
+  }
+
+  return lines.slice(commandIndex + 1).find((line) => line.trim() && !line.startsWith("error ")) ?? "";
 }
 
 export async function queryTeamSpeakPlayers({
@@ -48,7 +72,7 @@ export async function queryTeamSpeakPlayers({
     return cached.data;
   }
 
-  const fields = await new Promise<Record<string, string>>((resolve, reject) => {
+  const queryData = await new Promise<TeamSpeakQueryData>((resolve, reject) => {
     const socket = net.createConnection({ host, port: queryPort });
     let buffer = "";
     let serverInfoSent = false;
@@ -65,18 +89,23 @@ export async function queryTeamSpeakPlayers({
 
       if (!serverInfoSent && buffer.includes("TS3")) {
         serverInfoSent = true;
-        socket.write(`use port=${voicePort}\r\nserverinfo\r\nquit\r\n`);
+        socket.write(`use port=${voicePort}\r\nserverinfo\r\nchannellist\r\nclientlist\r\nquit\r\n`);
       }
 
-      const serverInfoLine = buffer
-        .split(/\r?\n/)
-        .find((line) => line.includes("virtualserver_clientsonline="));
+      const lines = buffer.split(/\r?\n/);
+      const serverInfoLine = getLineAfterCommand(lines, "serverinfo");
+      const channelListLine = getLineAfterCommand(lines, "channellist");
+      const clientListLine = getLineAfterCommand(lines, "clientlist");
 
-      if (serverInfoLine) {
+      if (serverInfoLine && channelListLine && clientListLine) {
         completed = true;
         clearTimeout(timeout);
         socket.end();
-        resolve(parseServerQueryFields(serverInfoLine));
+        resolve({
+          serverInfo: parseServerQueryFields(serverInfoLine),
+          channelList: parseServerQueryList(channelListLine),
+          clientList: parseServerQueryList(clientListLine),
+        });
       }
     });
 
@@ -94,6 +123,31 @@ export async function queryTeamSpeakPlayers({
     });
   });
 
+  const fields = queryData.serverInfo;
+  const clientsByChannel = new Map<string, ServerPlayers["players"]>();
+
+  for (const client of queryData.clientList) {
+    if (client.client_type === "1") {
+      continue;
+    }
+
+    const channelId = client.cid ?? "0";
+    const existingClients = clientsByChannel.get(channelId) ?? [];
+    existingClients.push({
+      name: client.client_nickname ?? "Unnamed client",
+      score: "",
+      ping: client.client_ping ?? "",
+    });
+    clientsByChannel.set(channelId, existingClients);
+  }
+
+  const channels = queryData.channelList.map((channel) => ({
+    id: channel.cid ?? "",
+    parentId: channel.pid ?? "0",
+    order: channel.channel_order ?? "0",
+    name: channel.channel_name ?? "Unnamed channel",
+    clients: clientsByChannel.get(channel.cid ?? "") ?? [],
+  }));
   const online = Math.max(
     0,
     numberField(fields, "virtualserver_clientsonline") -
@@ -106,7 +160,8 @@ export async function queryTeamSpeakPlayers({
     gameType: "ts3",
     maxClients: maxClients > 0 ? maxClients : null,
     playerCount: online,
-    players: [],
+    players: channels.flatMap((channel) => channel.clients),
+    channels,
     retrievedAt: Math.floor(Date.now() / 1000),
   };
 

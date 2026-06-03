@@ -6,6 +6,14 @@ type QueryPlayer = {
   ping: string;
 };
 
+type QueryChannel = {
+  id: string;
+  parentId: string;
+  order: string;
+  name: string;
+  clients: QueryPlayer[];
+};
+
 export type ServerPlayers = {
   hostname: string;
   mapName: string;
@@ -13,6 +21,7 @@ export type ServerPlayers = {
   maxClients: number | null;
   playerCount: number;
   players: QueryPlayer[];
+  channels?: QueryChannel[];
   retrievedAt: number | null;
 };
 

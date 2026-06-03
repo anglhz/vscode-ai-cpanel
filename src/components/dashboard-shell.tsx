@@ -63,6 +63,17 @@ type ServerPlayersDto = {
     score: string;
     ping: string;
   }[];
+  channels?: {
+    id: string;
+    parentId: string;
+    order: string;
+    name: string;
+    clients: {
+      name: string;
+      score: string;
+      ping: string;
+    }[];
+  }[];
   retrievedAt: number | null;
 };
 
@@ -759,7 +770,11 @@ function PlayersPanel({
 
       {error ? <p className="mt-3 text-sm text-red-200">{error}</p> : null}
 
-      {players && players.players.length > 0 ? (
+      {isVoice && players?.channels ? (
+        <TeamSpeakViewer channels={players.channels} />
+      ) : null}
+
+      {!isVoice && players && players.players.length > 0 ? (
         <div className="mt-4 overflow-hidden rounded-md border border-white/10">
           <div className="grid grid-cols-[1fr_72px_72px] bg-white/[0.06] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
             <span>Name</span>
@@ -781,12 +796,53 @@ function PlayersPanel({
         </div>
       ) : null}
 
-      {players && players.players.length === 0 ? (
+      {players && players.players.length === 0 && (!isVoice || !players.channels?.length) ? (
         <p className="mt-4 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-400">
           {isVoice ? "No clients connected right now." : "No players online right now."}
         </p>
       ) : null}
     </section>
+  );
+}
+
+function TeamSpeakViewer({ channels }: { channels: NonNullable<ServerPlayersDto["channels"]> }) {
+  const orderedChannels = [...channels].sort((left, right) => {
+    const leftParent = Number(left.parentId);
+    const rightParent = Number(right.parentId);
+
+    if (leftParent !== rightParent) {
+      return leftParent - rightParent;
+    }
+
+    return Number(left.order) - Number(right.order);
+  });
+
+  return (
+    <div className="mt-4 max-h-80 overflow-y-auto rounded-md border border-white/10 bg-black/10">
+      {orderedChannels.map((channel) => (
+        <div key={channel.id} className="border-b border-white/10 px-3 py-2 last:border-b-0">
+          <div className="flex items-center justify-between gap-3">
+            <p className="truncate text-sm font-semibold text-cyan-100">{channel.name}</p>
+            <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-xs text-neutral-400">
+              {channel.clients.length}
+            </span>
+          </div>
+          {channel.clients.length > 0 ? (
+            <div className="mt-2 space-y-1">
+              {channel.clients.map((client) => (
+                <div
+                  key={`${channel.id}-${client.name}`}
+                  className="flex items-center justify-between gap-3 rounded-md bg-white/[0.035] px-2 py-1.5 text-sm text-neutral-200"
+                >
+                  <span className="truncate">{client.name}</span>
+                  {client.ping ? <span className="font-mono text-xs text-neutral-500">{client.ping} ms</span> : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
   );
 }
 
