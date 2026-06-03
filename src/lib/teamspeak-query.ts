@@ -46,16 +46,6 @@ function numberField(fields: Record<string, string>, key: string) {
   return Number.isFinite(value) ? value : 0;
 }
 
-function getLineAfterCommand(lines: string[], command: string) {
-  const commandIndex = lines.findIndex((line) => line.trim() === command);
-
-  if (commandIndex < 0) {
-    return "";
-  }
-
-  return lines.slice(commandIndex + 1).find((line) => line.trim() && !line.startsWith("error ")) ?? "";
-}
-
 export async function queryTeamSpeakPlayers({
   host,
   queryPort,
@@ -92,10 +82,10 @@ export async function queryTeamSpeakPlayers({
         socket.write(`use port=${voicePort}\r\nserverinfo\r\nchannellist\r\nclientlist\r\nquit\r\n`);
       }
 
-      const lines = buffer.split(/\r?\n/);
-      const serverInfoLine = getLineAfterCommand(lines, "serverinfo");
-      const channelListLine = getLineAfterCommand(lines, "channellist");
-      const clientListLine = getLineAfterCommand(lines, "clientlist");
+      const lines = buffer.split(/\r?\n/).filter((line) => line.trim() && !line.startsWith("error "));
+      const serverInfoLine = lines.find((line) => line.includes("virtualserver_clientsonline=")) ?? "";
+      const channelListLine = lines.find((line) => line.includes("channel_name=")) ?? "";
+      const clientListLine = lines.find((line) => line.includes("client_nickname=")) ?? "";
 
       if (serverInfoLine && channelListLine && clientListLine) {
         completed = true;
