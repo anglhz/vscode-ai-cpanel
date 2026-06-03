@@ -12,6 +12,7 @@ const SUDO_MKDIR = "/usr/bin/mkdir";
 const SUDO_CHOWN = "/usr/bin/chown";
 const SUDO_SYSTEMCTL = "/usr/bin/systemctl";
 const SUDO_TEE = "/usr/bin/tee";
+const SUDO_GROUPADD = "/usr/sbin/groupadd";
 
 export type ServerAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -232,6 +233,10 @@ export async function provisionSystemdServer(config: {
   const servicePath = `${getSystemdUnitDir()}/${built.serviceName}`;
   const owner = `${config.ownerFolder}:${getGameServerGroup()}`;
 
+  await execFileAsync("sudo", [SUDO_GROUPADD, "-f", getGameServerGroup()], {
+    timeout: 10_000,
+    windowsHide: true,
+  });
   await execFileAsync("sudo", [SUDO_MKDIR, "-p", built.serverDir], {
     timeout: 10_000,
     windowsHide: true,
