@@ -1,4 +1,4 @@
-export const GAME_KEYS = ["cod1", "cod2", "cod4", "ts3"] as const;
+export const GAME_KEYS = ["cod1", "coduo", "cod2", "cod4", "ts3"] as const;
 export type GameKey = (typeof GAME_KEYS)[number];
 
 export const GAME_PROFILES: Record<
@@ -10,8 +10,13 @@ export const GAME_PROFILES: Record<
   }
 > = {
   cod1: {
-    label: "Call of Duty 1",
+    label: "Call of Duty",
     defaultBinaryName: "cod_lnxded",
+    serviceType: "simple",
+  },
+  coduo: {
+    label: "Call of Duty: United Offensive",
+    defaultBinaryName: "coduo_lnxded",
     serviceType: "simple",
   },
   cod2: {
@@ -20,7 +25,7 @@ export const GAME_PROFILES: Record<
     serviceType: "simple",
   },
   cod4: {
-    label: "Call of Duty 4",
+    label: "Call of Duty: Modern Warfare",
     defaultBinaryName: "cod4x18_dedrun",
     serviceType: "simple",
   },

@@ -91,11 +91,15 @@ const statusStyle: Record<ServerStatus, string> = {
 };
 const SERVER_PUBLIC_IP = process.env.NEXT_PUBLIC_SERVER_PUBLIC_IP ?? "144.76.41.252";
 const SERVER_GAME_OPTIONS = [
-  { value: "cod1", label: "Call of Duty 1", binary: "cod_lnxded" },
+  { value: "cod1", label: "Call of Duty", binary: "cod_lnxded" },
+  { value: "coduo", label: "Call of Duty: United Offensive", binary: "coduo_lnxded" },
   { value: "cod2", label: "Call of Duty 2", binary: "cod2_lnxded" },
-  { value: "cod4", label: "Call of Duty 4", binary: "cod4x18_dedrun" },
+  { value: "cod4", label: "Call of Duty: Modern Warfare", binary: "cod4x18_dedrun" },
   { value: "ts3", label: "TeamSpeak 3", binary: "teamspeak3-server_linux_amd64/ts3server_startscript.sh" },
 ] as const;
+const SERVER_GAME_LABELS: Record<string, string> = Object.fromEntries(
+  SERVER_GAME_OPTIONS.map((game) => [game.value, game.label]),
+);
 
 export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
   const [view, setView] = useState<"servers" | "users">("servers");
@@ -531,6 +535,8 @@ function ServersPanel({
 }) {
   const [orderedServers, setOrderedServers] = useState(servers);
   const [draggedServerId, setDraggedServerId] = useState("");
+  const [draggedGameKey, setDraggedGameKey] = useState("");
+  const groupedServers = useMemo(() => groupServersByGame(orderedServers), [orderedServers]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setOrderedServers(servers), 0);
@@ -561,13 +567,34 @@ function ServersPanel({
     const fromIndex = orderedServers.findIndex((server) => server.id === draggedServerId);
     const toIndex = orderedServers.findIndex((server) => server.id === targetServerId);
 
-    if (fromIndex < 0 || toIndex < 0) {
+    if (fromIndex < 0 || toIndex < 0 || getServerGame(orderedServers[fromIndex]) !== getServerGame(orderedServers[toIndex])) {
       return;
     }
 
     const nextServers = [...orderedServers];
     const [movedServer] = nextServers.splice(fromIndex, 1);
     nextServers.splice(toIndex, 0, movedServer);
+    setOrderedServers(nextServers);
+    void saveOrder(nextServers);
+  }
+
+  function moveDraggedGroup(targetGameKey: string) {
+    if (!draggedGameKey || draggedGameKey === targetGameKey) {
+      return;
+    }
+
+    const fromIndex = groupedServers.findIndex((group) => group.gameKey === draggedGameKey);
+    const toIndex = groupedServers.findIndex((group) => group.gameKey === targetGameKey);
+
+    if (fromIndex < 0 || toIndex < 0) {
+      return;
+    }
+
+    const nextGroups = [...groupedServers];
+    const [movedGroup] = nextGroups.splice(fromIndex, 1);
+    nextGroups.splice(toIndex, 0, movedGroup);
+
+    const nextServers = nextGroups.flatMap((group) => group.servers);
     setOrderedServers(nextServers);
     void saveOrder(nextServers);
   }
@@ -582,19 +609,60 @@ function ServersPanel({
           <span className="text-right">Operations</span>
         </div>
         <div className="divide-y divide-white/10">
-          {orderedServers.map((server) => (
-            <ServerRow
-              key={server.id}
-              server={server}
-              isAdmin={isAdmin}
-              reload={reload}
-              setMessage={setMessage}
-              draggable
-              dragging={draggedServerId === server.id}
-              onDragStart={() => setDraggedServerId(server.id)}
-              onDragEnd={() => setDraggedServerId("")}
-              onDropOnRow={() => moveDraggedServer(server.id)}
-            />
+          {groupedServers.map((group) => (
+            <section
+              key={group.gameKey}
+              className={`bg-[#081321]/40 transition ${draggedGameKey === group.gameKey ? "opacity-60" : ""}`}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                moveDraggedGroup(group.gameKey);
+              }}
+            >
+              <div
+                className="flex items-center gap-3 border-b border-white/10 bg-white/[0.035] px-4 py-3"
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  setDraggedGameKey(group.gameKey);
+                }}
+                onDragEnd={() => setDraggedGameKey("")}
+              >
+                <span
+                  className="hidden h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-md border border-white/10 text-neutral-500 transition hover:bg-white/5 hover:text-neutral-200 active:cursor-grabbing lg:flex"
+                  title="Drag game group to reorder"
+                >
+                  <GripVertical className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-semibold uppercase tracking-wide text-cyan-100">
+                    {group.label}
+                  </h2>
+                  <p className="text-xs text-neutral-500">
+                    {group.servers.length} {group.servers.length === 1 ? "server" : "servers"}
+                  </p>
+                </div>
+              </div>
+              <div className="divide-y divide-white/10">
+                {group.servers.map((server) => (
+                  <ServerRow
+                    key={server.id}
+                    server={server}
+                    isAdmin={isAdmin}
+                    reload={reload}
+                    setMessage={setMessage}
+                    draggable
+                    dragging={draggedServerId === server.id}
+                    onDragStart={() => setDraggedServerId(server.id)}
+                    onDragEnd={() => setDraggedServerId("")}
+                    onDropOnRow={() => moveDraggedServer(server.id)}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       </div>
@@ -680,6 +748,7 @@ function ServerRow({
       }`}
       draggable={draggable}
       onDragStart={(event) => {
+        event.stopPropagation();
         event.dataTransfer.effectAllowed = "move";
         onDragStart();
       }}
@@ -691,6 +760,7 @@ function ServerRow({
         }
       }}
       onDrop={(event) => {
+        event.stopPropagation();
         event.preventDefault();
         onDropOnRow();
       }}
@@ -1145,7 +1215,29 @@ function stripCodColors(value: string) {
 }
 
 function getServerGame(server: GameServerDto) {
-  return server.systemdServiceName?.match(/^([a-zA-Z0-9_-]+)-\d+\.service$/)?.[1] ?? "";
+  const serviceGame = server.systemdServiceName?.match(/^([a-zA-Z0-9_-]+)-\d+\.service$/)?.[1];
+  const pathGame = server.execStart.match(/\/(cod1|coduo|cod2|cod4|ts3)\//)?.[1];
+
+  return serviceGame ?? pathGame ?? "other";
+}
+
+function getServerGameLabel(gameKey: string) {
+  return SERVER_GAME_LABELS[gameKey] ?? "Other servers";
+}
+
+function groupServersByGame(servers: GameServerDto[]) {
+  const groups = new Map<string, GameServerDto[]>();
+
+  for (const server of servers) {
+    const gameKey = getServerGame(server);
+    groups.set(gameKey, [...(groups.get(gameKey) ?? []), server]);
+  }
+
+  return Array.from(groups.entries()).map(([gameKey, groupServers]) => ({
+    gameKey,
+    label: getServerGameLabel(gameKey),
+    servers: groupServers,
+  }));
 }
 
 function isVoiceGameServer(server: GameServerDto) {
