@@ -1355,7 +1355,8 @@ function ServerForm({
       setMessage("Server created.");
       await reload();
     } else {
-      setMessage("Could not create server. Check the service name format.");
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setMessage(data?.error ?? "Could not create server.");
     }
   }
 

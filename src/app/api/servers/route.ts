@@ -53,27 +53,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid server payload." }, { status: 400 });
   }
 
-  const provisioned = await provisionSystemdServer({
-    name: parsed.data.name,
-    ownerFolder: parsed.data.ownerFolder,
-    game: parsed.data.game,
-    port: parsed.data.port,
-    maxClients: parsed.data.maxClients,
-    binaryName: parsed.data.binaryName,
-  });
+  let provisioned;
+  try {
+    provisioned = await provisionSystemdServer({
+      name: parsed.data.name,
+      ownerFolder: parsed.data.ownerFolder,
+      game: parsed.data.game,
+      port: parsed.data.port,
+      maxClients: parsed.data.maxClients,
+      binaryName: parsed.data.binaryName,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not provision server." },
+      { status: 500 },
+    );
+  }
   const nextDisplayOrder = await prisma.gameServer.count();
 
-  const server = await prisma.gameServer.create({
-    data: {
-      name: parsed.data.name,
-      description: parsed.data.description,
-      systemdServiceName: provisioned.serviceName,
-      execStart: provisioned.execStart,
-      status: parsed.data.status ?? "UNKNOWN",
-      displayOrder: nextDisplayOrder,
-    },
-    include: { assignedUsers: true },
-  });
+  try {
+    const server = await prisma.gameServer.create({
+      data: {
+        name: parsed.data.name,
+        description: parsed.data.description,
+        systemdServiceName: provisioned.serviceName,
+        execStart: provisioned.execStart,
+        status: parsed.data.status ?? "UNKNOWN",
+        displayOrder: nextDisplayOrder,
+      },
+      include: { assignedUsers: true },
+    });
 
-  return NextResponse.json({ server: serializeServer(server, user.role) }, { status: 201 });
+    return NextResponse.json({ server: serializeServer(server, user.role) }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not save server." },
+      { status: 500 },
+    );
+  }
 }
