@@ -4,13 +4,21 @@ import { GAME_KEYS } from "@/lib/game-profiles";
 
 const execFileAsync = promisify(execFile);
 const USERNAME_PATTERN = /^[a-zA-Z0-9_-]{2,32}$/;
+const SUDO_GROUPADD = "/usr/sbin/groupadd";
+const SUDO_USERADD = "/usr/sbin/useradd";
+const SUDO_USERMOD = "/usr/sbin/usermod";
+const SUDO_CHPASSWD = "/usr/sbin/chpasswd";
+const SUDO_PASSWD = "/usr/bin/passwd";
+const SUDO_MKDIR = "/usr/bin/mkdir";
+const SUDO_CHOWN = "/usr/bin/chown";
+const SUDO_CHMOD = "/usr/bin/chmod";
 
 function getGameServersRoot() {
   return process.env.GAME_SERVERS_ROOT || "/opt/game-servers";
 }
 
 function getGameServerGroup() {
-  return process.env.GAME_SERVER_RUN_GROUP || process.env.GAME_SERVER_RUN_USER || "cod1";
+  return process.env.GAME_SERVER_RUN_GROUP || "gamepanel-games";
 }
 
 function getSftpGroup() {
@@ -76,22 +84,27 @@ export async function provisionSftpUser({
   const sftpGroup = getSftpGroup();
   const gameGroup = getGameServerGroup();
 
-  await sudo("groupadd", ["-f", sftpGroup]);
+  await sudo(SUDO_GROUPADD, ["-f", sftpGroup]);
+  await sudo(SUDO_GROUPADD, ["-f", gameGroup]);
   await execFileAsync("id", ["-u", username]).catch(async () => {
-    await sudo("useradd", ["-m", "-d", userRoot, "-s", "/usr/sbin/nologin", username]);
+    await sudo(SUDO_USERADD, ["-m", "-d", userRoot, "-s", "/usr/sbin/nologin", username]);
   });
-  await sudo("usermod", ["-d", userRoot, "-s", "/usr/sbin/nologin", username]);
-  await sudo("usermod", ["-aG", sftpGroup, username]);
-  await sudo("usermod", ["-aG", gameGroup, username]);
+  await sudo(SUDO_USERMOD, ["-d", userRoot, "-s", "/usr/sbin/nologin", username]);
+  await sudo(SUDO_USERMOD, ["-aG", sftpGroup, username]);
+  await sudo(SUDO_USERMOD, ["-aG", gameGroup, username]);
 
-  await sudoWithInput("chpasswd", [], `${username}:${password}`);
-  await sudo("passwd", ["-u", username]).catch(() => undefined);
+  await sudoWithInput(SUDO_CHPASSWD, [], `${username}:${password}`);
+  await sudo(SUDO_PASSWD, ["-u", username]).catch(() => undefined);
 
-  await sudo("mkdir", ["-p", ...gameDirs]);
-  await sudo("chown", ["root:root", userRoot]);
-  await sudo("chmod", ["755", userRoot]);
-  await sudo("chown", ["-R", `${username}:${gameGroup}`, ...gameDirs]);
-  await sudo("chmod", ["-R", "775", ...gameDirs]);
+  for (const gameDir of gameDirs) {
+    await sudo(SUDO_MKDIR, ["-p", gameDir]);
+  }
+  await sudo(SUDO_CHOWN, ["root:root", userRoot]);
+  await sudo(SUDO_CHMOD, ["755", userRoot]);
+  for (const gameDir of gameDirs) {
+    await sudo(SUDO_CHOWN, ["-R", `${username}:${gameGroup}`, gameDir]);
+    await sudo(SUDO_CHMOD, ["-R", "775", gameDir]);
+  }
 
   return { skipped: false };
 }

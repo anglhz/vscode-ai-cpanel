@@ -51,6 +51,7 @@ type UserDto = {
   name: string;
   email: string;
   role: Role;
+  sftpUsername: string | null;
   serverIds: string[];
 };
 
@@ -318,6 +319,7 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
             <ServersPanel
               isAdmin={isAdmin}
               servers={servers}
+              users={users}
               reload={loadData}
               setMessage={setMessage}
             />
@@ -525,11 +527,13 @@ function Stat({ label, value }: { label: string; value: number }) {
 function ServersPanel({
   isAdmin,
   servers,
+  users,
   reload,
   setMessage,
 }: {
   isAdmin: boolean;
   servers: GameServerDto[];
+  users: UserDto[];
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
 }) {
@@ -602,7 +606,7 @@ function ServersPanel({
 
   return (
     <div className="space-y-6">
-      {isAdmin ? <ServerForm reload={reload} setMessage={setMessage} /> : null}
+      {isAdmin ? <ServerForm users={users} reload={reload} setMessage={setMessage} /> : null}
       <div className="overflow-hidden rounded-lg border border-white/10 bg-[#09111d]/70 shadow-2xl shadow-black/25 backdrop-blur-xl">
         <div className="hidden grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.7fr)_minmax(230px,0.9fr)] border-b border-white/10 bg-white/[0.07] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-300 lg:grid">
           <span>Server name</span>
@@ -1319,9 +1323,11 @@ function isQueryableGameServer(server: GameServerDto) {
 }
 
 function ServerForm({
+  users,
   reload,
   setMessage,
 }: {
+  users: UserDto[];
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
 }) {
@@ -1329,6 +1335,7 @@ function ServerForm({
   const [open, setOpen] = useState(false);
   const selectedGameOption = SERVER_GAME_OPTIONS.find((game) => game.value === selectedGame) ?? SERVER_GAME_OPTIONS[0];
   const isTeamspeak = selectedGame === "ts3";
+  const ownerUsers = users.filter((user) => user.sftpUsername);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1340,7 +1347,7 @@ function ServerForm({
       body: JSON.stringify({
         name: formData.get("name"),
         description: formData.get("description"),
-        ownerFolder: formData.get("ownerFolder"),
+        ownerUserId: formData.get("ownerUserId"),
         game: formData.get("game"),
         port: formData.get("port"),
         maxClients: formData.get("maxClients"),
@@ -1379,10 +1386,21 @@ function ServerForm({
 
       {open ? (
         <form onSubmit={submit} className="mt-4 border-t border-white/10 pt-4">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_150px_180px_120px]">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px_180px_120px]">
             <Input name="name" placeholder="Server name" />
             <Input name="description" placeholder="Description" />
-            <Input name="ownerFolder" placeholder="Alias" />
+            <select
+              name="ownerUserId"
+              required
+              className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none ring-cyan-400/20 transition focus:border-cyan-300 focus:ring-4"
+            >
+              <option value="">User</option>
+              {ownerUsers.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name} ({user.sftpUsername})
+                </option>
+              ))}
+            </select>
             <select
               name="game"
               value={selectedGame}
@@ -1397,6 +1415,11 @@ function ServerForm({
             </select>
             <Input name="port" type="number" placeholder="28960" />
           </div>
+          {ownerUsers.length === 0 ? (
+            <p className="mt-3 rounded-md border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
+              Create or edit a user with an SFTP username before adding servers.
+            </p>
+          ) : null}
           <div className={`mt-5 grid gap-4 ${isTeamspeak ? "sm:grid-cols-1 lg:max-w-xs" : "sm:grid-cols-2 lg:max-w-xl"}`}>
             {!isTeamspeak ? (
               <label className="block">
@@ -1610,6 +1633,7 @@ function UserEditor({
         <Input name="name" defaultValue={user.name} placeholder="Name" />
         <Input name="email" type="email" defaultValue={user.email} placeholder="Email" />
         <Input name="password" type="password" placeholder="New password optional" required={false} />
+        <Input name="sftpUsername" defaultValue={user.sftpUsername ?? ""} placeholder="SFTP username / folder" required={false} />
         <select name="role" defaultValue={user.role} className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none">
           <option value="USER">User</option>
           <option value="ADMIN">Admin</option>
@@ -1693,9 +1717,9 @@ function userPayload(form: HTMLFormElement) {
     email: formData.get("email"),
     password: formData.get("password") || undefined,
     role: formData.get("role"),
+    sftpUsername: formData.get("sftpUsername") || undefined,
     serverIds: formData.getAll("serverIds"),
     createSftpUser: formData.get("createSftpUser") === "on",
-    sftpUsername: formData.get("sftpUsername") || undefined,
     sftpPassword: formData.get("sftpPassword") || undefined,
   };
 }

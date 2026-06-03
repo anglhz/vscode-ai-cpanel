@@ -44,7 +44,7 @@ function getGameServerUser() {
 }
 
 function getGameServerGroup() {
-  return process.env.GAME_SERVER_RUN_GROUP || getGameServerUser();
+  return process.env.GAME_SERVER_RUN_GROUP || "gamepanel-games";
 }
 
 function assertSafePort(port: number) {
@@ -230,7 +230,7 @@ export async function provisionSystemdServer(config: {
   }
 
   const servicePath = `${getSystemdUnitDir()}/${built.serviceName}`;
-  const owner = `${getGameServerUser()}:${getGameServerGroup()}`;
+  const owner = `${config.ownerFolder}:${getGameServerGroup()}`;
 
   await execFileAsync("sudo", [SUDO_MKDIR, "-p", built.serverDir], {
     timeout: 10_000,

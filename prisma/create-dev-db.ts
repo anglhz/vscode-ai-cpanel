@@ -13,6 +13,7 @@ async function main() {
       "email" TEXT NOT NULL,
       "passwordHash" TEXT NOT NULL,
       "role" TEXT NOT NULL DEFAULT 'USER',
+      "sftpUsername" TEXT,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL
     );
@@ -64,6 +65,23 @@ async function main() {
   await addColumnIfMissing("extraParameters", `TEXT NOT NULL DEFAULT ''`);
   await addColumnIfMissing("displayOrder", `INTEGER NOT NULL DEFAULT 0`);
   await addAccessColumnIfMissing("displayOrder", `INTEGER NOT NULL DEFAULT 0`);
+  await addUserColumnIfMissing("sftpUsername", `TEXT`);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "User_sftpUsername_key" ON "User"("sftpUsername");
+  `);
+}
+
+async function addUserColumnIfMissing(name: string, definition: string) {
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "User" ADD COLUMN "${name}" ${definition};
+    `);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("duplicate column name")) {
+      throw error;
+    }
+  }
 }
 
 async function addColumnIfMissing(name: string, definition: string) {

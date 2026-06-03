@@ -11,7 +11,7 @@ const serverStatuses = ["ONLINE", "OFFLINE", "STARTING", "STOPPING", "RESTARTING
 const serverSchema = z.object({
   name: z.string().min(2),
   description: z.string().min(2),
-  ownerFolder: z.string().min(1).max(48).regex(/^[a-zA-Z0-9_-]+$/),
+  ownerUserId: z.string().min(1),
   game: z.enum(GAME_KEYS),
   port: z.coerce.number().int().min(1024).max(65535),
   maxClients: z.coerce.number().int().min(1).max(128).default(12),
@@ -53,11 +53,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid server payload." }, { status: 400 });
   }
 
+  const ownerUser = await prisma.user.findUnique({
+    where: { id: parsed.data.ownerUserId },
+    select: { sftpUsername: true, name: true },
+  });
+
+  if (!ownerUser?.sftpUsername) {
+    return NextResponse.json(
+      { error: "Selected user does not have an SFTP username/folder configured." },
+      { status: 400 },
+    );
+  }
+
   let provisioned;
   try {
     provisioned = await provisionSystemdServer({
       name: parsed.data.name,
-      ownerFolder: parsed.data.ownerFolder,
+      ownerFolder: ownerUser.sftpUsername,
       game: parsed.data.game,
       port: parsed.data.port,
       maxClients: parsed.data.maxClients,
@@ -80,6 +92,9 @@ export async function POST(request: Request) {
         execStart: provisioned.execStart,
         status: parsed.data.status ?? "UNKNOWN",
         displayOrder: nextDisplayOrder,
+        assignedUsers: {
+          create: { userId: parsed.data.ownerUserId },
+        },
       },
       include: { assignedUsers: true },
     });

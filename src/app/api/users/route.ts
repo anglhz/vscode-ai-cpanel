@@ -26,6 +26,7 @@ export async function GET() {
       name: true,
       email: true,
       role: true,
+      sftpUsername: true,
       serverAccess: { select: { serverId: true } },
     },
     orderBy: { name: "asc" },
@@ -80,6 +81,7 @@ export async function POST(request: Request) {
       name: parsed.data.name,
       email: parsed.data.email.toLowerCase(),
       role: parsed.data.role,
+      sftpUsername: parsed.data.createSftpUser ? parsed.data.sftpUsername : null,
       passwordHash,
       serverAccess: {
         create: parsed.data.serverIds.map((serverId) => ({ serverId })),

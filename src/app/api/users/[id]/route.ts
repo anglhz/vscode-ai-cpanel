@@ -11,6 +11,7 @@ const updateUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).optional().or(z.literal("")),
   role: z.enum(roles),
+  sftpUsername: z.string().regex(/^[a-zA-Z0-9_-]{2,32}$/).optional().or(z.literal("")),
   serverIds: z.array(z.string()).default([]),
 });
 
@@ -33,6 +34,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       data: {
         ...data,
         email: data.email.toLowerCase(),
+        sftpUsername: data.sftpUsername || null,
         ...(passwordHash ? { passwordHash } : {}),
         serverAccess: { create: serverIds.map((serverId) => ({ serverId })) },
       },
