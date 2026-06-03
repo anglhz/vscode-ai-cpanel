@@ -13,8 +13,8 @@ function getPortFromExecStart(execStart: string) {
   return execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1] ?? null;
 }
 
-function getTeamSpeakVoicePort(execStart: string) {
-  return execStart.match(/default_voice_port=(\d+)/)?.[1] ?? null;
+function getTeamSpeakVoicePort(execStart: string, serviceName: string) {
+  return execStart.match(/default_voice_port=(\d+)/)?.[1] ?? serviceName.match(/^ts3-(\d+)\.service$/)?.[1] ?? null;
 }
 
 function getTeamSpeakQueryPort(execStart: string) {
@@ -25,8 +25,12 @@ function getTeamSpeakQueryHost() {
   return process.env.TS3_QUERY_HOST ?? "127.0.0.1";
 }
 
-function isVoiceServer(serviceName: string) {
-  return serviceName.startsWith("ts3-");
+function isVoiceServer(serviceName: string, execStart: string) {
+  return (
+    serviceName.startsWith("ts3-") ||
+    execStart.includes("ts3server_startscript.sh") ||
+    execStart.includes("default_voice_port=")
+  );
 }
 
 export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
@@ -43,8 +47,9 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     return NextResponse.json({ error: "Server not found." }, { status: 404 });
   }
 
-  const port = isVoiceServer(server.systemdServiceName)
-    ? getTeamSpeakVoicePort(server.execStart)
+  const voiceServer = isVoiceServer(server.systemdServiceName, server.execStart);
+  const port = voiceServer
+    ? getTeamSpeakVoicePort(server.execStart, server.systemdServiceName)
     : getPortFromExecStart(server.execStart);
 
   if (!port) {
@@ -52,7 +57,7 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
   }
 
   try {
-    const players = isVoiceServer(server.systemdServiceName)
+    const players = voiceServer
       ? await queryTeamSpeakPlayers({
           host: getTeamSpeakQueryHost(),
           queryPort: Number(getTeamSpeakQueryPort(server.execStart)),
@@ -60,7 +65,10 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
         })
       : await queryGameServerPlayers(getPublicIp(), Number(port));
     return NextResponse.json(players);
-  } catch {
-    return NextResponse.json({ error: "Could not load player data." }, { status: 502 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not load player data." },
+      { status: 502 },
+    );
   }
 }

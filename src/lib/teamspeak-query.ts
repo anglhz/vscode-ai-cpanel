@@ -52,6 +52,7 @@ export async function queryTeamSpeakPlayers({
     const socket = net.createConnection({ host, port: queryPort });
     let buffer = "";
     let serverInfoSent = false;
+    let completed = false;
     const timeout = setTimeout(() => {
       socket.destroy();
       reject(new Error("TeamSpeak query timed out."));
@@ -64,7 +65,7 @@ export async function queryTeamSpeakPlayers({
 
       if (!serverInfoSent && buffer.includes("TS3")) {
         serverInfoSent = true;
-        socket.write(`use port=${voicePort}\nserverinfo\nquit\n`);
+        socket.write(`use port=${voicePort}\r\nserverinfo\r\nquit\r\n`);
       }
 
       const serverInfoLine = buffer
@@ -72,6 +73,7 @@ export async function queryTeamSpeakPlayers({
         .find((line) => line.includes("virtualserver_clientsonline="));
 
       if (serverInfoLine) {
+        completed = true;
         clearTimeout(timeout);
         socket.end();
         resolve(parseServerQueryFields(serverInfoLine));
@@ -86,8 +88,8 @@ export async function queryTeamSpeakPlayers({
     socket.on("close", () => {
       clearTimeout(timeout);
 
-      if (!serverInfoSent) {
-        reject(new Error("TeamSpeak query closed before welcome."));
+      if (!completed) {
+        reject(new Error(serverInfoSent ? "TeamSpeak query closed before serverinfo." : "TeamSpeak query closed before welcome."));
       }
     });
   });

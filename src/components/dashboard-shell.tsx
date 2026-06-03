@@ -66,6 +66,8 @@ type ServerPlayersDto = {
   retrievedAt: number | null;
 };
 
+type PlayersPanelKind = "game" | "voice";
+
 const statusStyle: Record<ServerStatus, string> = {
   ONLINE: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
   OFFLINE: "border-neutral-500/30 bg-neutral-500/10 text-neutral-300",
@@ -588,8 +590,9 @@ function ServerRow({
     setPlayersLoading(false);
 
     if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
       setPlayers(null);
-      setPlayersError("Could not load player data.");
+      setPlayersError(data?.error ?? "Could not load player data.");
       return;
     }
 
@@ -687,6 +690,7 @@ function ServerRow({
             loading={playersLoading}
             error={playersError}
             onRefresh={loadPlayers}
+            kind={isVoiceGameServer(server) ? "voice" : "game"}
           />
         </div>
         <ServerConfigEditor
@@ -705,14 +709,17 @@ function PlayersPanel({
   loading,
   error,
   onRefresh,
+  kind,
 }: {
   players: ServerPlayersDto | null;
   loading: boolean;
   error: string;
   onRefresh: () => Promise<void>;
+  kind: PlayersPanelKind;
 }) {
   const maxClients = players?.maxClients ? `/${players.maxClients}` : "";
-  const onlineLabel = players?.gameType === "ts3" ? "Clients online" : "Players online";
+  const isVoice = kind === "voice" || players?.gameType === "ts3";
+  const onlineLabel = isVoice ? "Clients online" : "Players online";
 
   return (
     <section className="rounded-lg border border-white/10 bg-[#07111f]/70 p-4">
@@ -742,7 +749,7 @@ function PlayersPanel({
           className="flex h-9 items-center gap-2 rounded-md border border-white/10 px-3 text-sm font-medium text-neutral-200 transition hover:border-cyan-300/40 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh players
+          {isVoice ? "Refresh clients" : "Refresh players"}
         </button>
       </div>
 
@@ -776,7 +783,7 @@ function PlayersPanel({
 
       {players && players.players.length === 0 ? (
         <p className="mt-4 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-400">
-          {players.gameType === "ts3" ? "No clients connected right now." : "No players online right now."}
+          {isVoice ? "No clients connected right now." : "No players online right now."}
         </p>
       ) : null}
     </section>
