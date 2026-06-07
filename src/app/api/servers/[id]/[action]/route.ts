@@ -10,6 +10,12 @@ const nextStatus = {
   restart: "RESTARTING",
 };
 
+const nextDesiredState = {
+  start: "RUNNING",
+  stop: "STOPPED",
+  restart: "RUNNING",
+};
+
 export async function POST(
   _: Request,
   context: { params: Promise<{ id: string; action: string }> },
@@ -35,7 +41,11 @@ export async function POST(
     await runSystemdAction(server.systemdServiceName, action);
     const updated = await prisma.gameServer.update({
       where: { id },
-      data: { status: nextStatus[action] },
+      data: {
+        status: nextStatus[action],
+        desiredState: nextDesiredState[action],
+        lastDownAlertAt: null,
+      },
     });
 
     return NextResponse.json({ status: updated.status });

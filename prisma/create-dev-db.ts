@@ -32,6 +32,8 @@ async function main() {
       "rconPassword" TEXT NOT NULL DEFAULT '',
       "extraParameters" TEXT NOT NULL DEFAULT '',
       "status" TEXT NOT NULL DEFAULT 'UNKNOWN',
+      "desiredState" TEXT NOT NULL DEFAULT 'STOPPED',
+      "lastDownAlertAt" DATETIME,
       "displayOrder" INTEGER NOT NULL DEFAULT 0,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL
@@ -63,6 +65,8 @@ async function main() {
   await addColumnIfMissing("configFile", `TEXT NOT NULL DEFAULT ''`);
   await addColumnIfMissing("rconPassword", `TEXT NOT NULL DEFAULT ''`);
   await addColumnIfMissing("extraParameters", `TEXT NOT NULL DEFAULT ''`);
+  await addColumnIfMissing("desiredState", `TEXT NOT NULL DEFAULT 'STOPPED'`);
+  await addColumnIfMissing("lastDownAlertAt", `DATETIME`);
   await addColumnIfMissing("displayOrder", `INTEGER NOT NULL DEFAULT 0`);
   await addAccessColumnIfMissing("displayOrder", `INTEGER NOT NULL DEFAULT 0`);
   await addUserColumnIfMissing("sftpUsername", `TEXT`);

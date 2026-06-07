@@ -10,6 +10,7 @@
     "db:migrate": "prisma migrate dev",
     "db:init:sqlite": "tsx prisma/create-dev-db.ts",
     "db:seed": "prisma db seed",
+    "monitor:alerts": "tsx scripts/monitor-alerts.ts",
     "prisma:generate": "prisma generate"
   },
   "dependencies": {

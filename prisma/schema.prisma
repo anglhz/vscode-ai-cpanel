@@ -31,6 +31,8 @@ model GameServer {
   rconPassword       String             @default("")
   extraParameters    String             @default("")
   status             String             @default("UNKNOWN")
+  desiredState       String             @default("STOPPED")
+  lastDownAlertAt    DateTime?
   displayOrder       Int                @default(0)
   assignedUsers      UserServerAccess[]
   createdAt          DateTime           @default(now())

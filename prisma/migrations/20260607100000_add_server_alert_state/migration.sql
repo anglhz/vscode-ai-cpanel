@@ -1,0 +1,2 @@
+ALTER TABLE "GameServer" ADD COLUMN "desiredState" TEXT NOT NULL DEFAULT 'STOPPED';
+ALTER TABLE "GameServer" ADD COLUMN "lastDownAlertAt" DATETIME;

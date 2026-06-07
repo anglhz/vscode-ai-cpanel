@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAccessServer } from "@/lib/rbac";
+import { handleServerStatusAlert } from "@/lib/server-alerts";
 import { getSystemdStatus } from "@/lib/systemd";
 
 export async function GET(_: Request, context: { params: Promise<{ id: string }> }) {
@@ -19,6 +20,7 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
   }
 
   const liveStatus = await getSystemdStatus(server.systemdServiceName);
+  await handleServerStatusAlert(server, liveStatus);
   const updated =
     liveStatus === "UNKNOWN"
       ? server
