@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAdmin, requireUser } from "@/lib/auth";
 import { GAME_KEYS } from "@/lib/game-profiles";
 import { prisma } from "@/lib/prisma";
-import { serializeServer } from "@/lib/serializers";
+import { serializeServerWithEffectiveExecStart } from "@/lib/serializers";
 import { provisionSystemdServer } from "@/lib/systemd";
 
 const serverStatuses = ["ONLINE", "OFFLINE", "STARTING", "STOPPING", "RESTARTING", "UNKNOWN"] as const;
@@ -24,7 +24,9 @@ export async function GET() {
   const servers = await getVisibleServers(user);
 
   return NextResponse.json({
-    servers: servers.map((server) => serializeServer(server, user.role)),
+    servers: await Promise.all(
+      servers.map((server) => serializeServerWithEffectiveExecStart(server, user.role)),
+    ),
   });
 }
 
@@ -99,7 +101,10 @@ export async function POST(request: Request) {
       include: { assignedUsers: true },
     });
 
-    return NextResponse.json({ server: serializeServer(server, user.role) }, { status: 201 });
+    return NextResponse.json(
+      { server: await serializeServerWithEffectiveExecStart(server, user.role) },
+      { status: 201 },
+    );
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not save server." },

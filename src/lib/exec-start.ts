@@ -75,7 +75,7 @@ function getExistingExecStartBase(existingExecStart: string, systemdServiceName:
 }
 
 function composeExecStartFromBase(base: string, settings: StartupSettings) {
-  const parts = [base];
+  const parts = [normalizeExecStartBase(base)];
   const fsGame = settings.fsGame?.trim();
   const configFile = settings.configFile?.trim();
   const rconPassword = settings.rconPassword?.trim();
@@ -100,6 +100,30 @@ function composeExecStartFromBase(base: string, settings: StartupSettings) {
   }
 
   return parts.join(" ");
+}
+
+function normalizeExecStartBase(base: string) {
+  if (base.includes("/ts3/") || !base.includes("/cod")) {
+    return base;
+  }
+
+  const binaryPath = base.trim().split(/\s+/, 1)[0];
+  const workingDirectory = binaryPath.slice(0, binaryPath.lastIndexOf("/"));
+  const additions: string[] = [];
+
+  if (!base.match(/\+set\s+fs_homepath\s+/)) {
+    additions.push(`+set fs_homepath ${workingDirectory}`);
+  }
+
+  if (!base.match(/\+set\s+fs_basepath\s+/)) {
+    additions.push(`+set fs_basepath ${workingDirectory}`);
+  }
+
+  if (additions.length === 0) {
+    return base;
+  }
+
+  return `${binaryPath} ${additions.join(" ")} ${base.slice(binaryPath.length).trim()}`.trim();
 }
 
 function escapeQuotedValue(value: string) {

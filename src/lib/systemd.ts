@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { GAME_PROFILES, isGameKey, type GameKey } from "@/lib/game-profiles";
@@ -38,10 +39,6 @@ function getSystemdUnitDir() {
 
 function getGameServersRoot() {
   return process.env.GAME_SERVERS_ROOT || "/opt/game-servers";
-}
-
-function getGameServerUser() {
-  return process.env.GAME_SERVER_RUN_USER || "cod1";
 }
 
 function getGameServerGroup() {
@@ -140,7 +137,7 @@ export async function applySystemdExecStart(serviceName: string, execStart: stri
   const overrideDir = `${unitDir}/${serviceName}.d`;
   const overridePath = `${overrideDir}/override.conf`;
   const workingDirectory = getWorkingDirectoryFromExecStart(execStart);
-  const content = `[Service]\nWorkingDirectory=${workingDirectory}\nExecStart=\nExecStart=${execStart}\n`;
+  const content = `[Service]\nEnvironment=HOME=${workingDirectory}\nWorkingDirectory=${workingDirectory}\nExecStart=\nExecStart=${execStart}\n`;
 
   await execFileAsync("sudo", [SUDO_MKDIR, "-p", overrideDir], {
     timeout: 10_000,
@@ -153,6 +150,27 @@ export async function applySystemdExecStart(serviceName: string, execStart: stri
   });
 
   return { skipped: false };
+}
+
+export async function getEffectiveSystemdExecStart(serviceName: string, fallbackExecStart: string) {
+  assertSafeServiceName(serviceName);
+
+  const overridePath = `${getSystemdUnitDir()}/${serviceName}.d/override.conf`;
+
+  try {
+    const content = await readFile(overridePath, "utf8");
+    const execStart = content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("ExecStart=") && line !== "ExecStart=")
+      .at(-1)
+      ?.slice("ExecStart=".length)
+      .trim();
+
+    return execStart || fallbackExecStart;
+  } catch {
+    return fallbackExecStart;
+  }
 }
 
 export function buildProvisionedServerConfig({
@@ -181,7 +199,7 @@ export function buildProvisionedServerConfig({
 
   const root = getGameServersRoot();
   const profile = GAME_PROFILES[game];
-  const runUser = getGameServerUser();
+  const runUser = ownerFolder;
   const runGroup = getGameServerGroup();
   const serverDir = `${root}/${ownerFolder}/${game}/${port}`;
   const serviceName = `${game}-${port}.service`;
@@ -191,7 +209,7 @@ export function buildProvisionedServerConfig({
   const execStart =
     game === "ts3"
       ? `${binaryPath} start default_voice_port=${port} query_port=10011 filetransfer_port=30033`
-      : `${binaryPath} +set dedicated 2 +set net_port ${port} +set sv_maxclients ${maxClients} +map_rotate`;
+      : `${binaryPath} +set fs_homepath ${workingDirectory} +set fs_basepath ${workingDirectory} +set dedicated 2 +set net_port ${port} +set sv_maxclients ${maxClients} +map_rotate`;
   const serviceExtra =
     game === "ts3"
       ? `Environment=TS3SERVER_LICENSE=accept\nExecStop=${binaryPath} stop\nExecReload=${binaryPath} restart\n`
@@ -204,6 +222,7 @@ After=network.target
 Type=${profile.serviceType}
 User=${runUser}
 Group=${runGroup}
+Environment=HOME=${workingDirectory}
 WorkingDirectory=${workingDirectory}
 ExecStart=${execStart}
 ${serviceExtra}Restart=on-failure

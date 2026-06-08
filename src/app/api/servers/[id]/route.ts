@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAdmin, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAccessServer } from "@/lib/rbac";
-import { serializeServer } from "@/lib/serializers";
+import { serializeServerWithEffectiveExecStart } from "@/lib/serializers";
 import { composeExecStartFromExisting } from "@/lib/exec-start";
 import { applySystemdExecStart } from "@/lib/systemd";
 
@@ -114,7 +114,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     include: { assignedUsers: true },
   });
 
-  return NextResponse.json({ server: serializeServer(server, user.role) });
+  return NextResponse.json({ server: await serializeServerWithEffectiveExecStart(server, user.role) });
 }
 
 export async function DELETE(_: Request, context: { params: Promise<{ id: string }> }) {

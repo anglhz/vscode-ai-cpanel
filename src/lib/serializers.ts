@@ -1,4 +1,5 @@
 import { getExecStartBase, getExecStartExtra } from "@/lib/exec-start";
+import { getEffectiveSystemdExecStart } from "@/lib/systemd";
 
 type ServerWithAccess = {
   id: string;
@@ -17,6 +18,18 @@ type ServerWithAccess = {
 };
 
 export function serializeServer(server: ServerWithAccess, role?: string) {
+  return serializeServerWithExecStart(server, server.execStart, role);
+}
+
+export async function serializeServerWithEffectiveExecStart(server: ServerWithAccess, role?: string) {
+  return serializeServerWithExecStart(
+    server,
+    await getEffectiveSystemdExecStart(server.systemdServiceName, server.execStart),
+    role,
+  );
+}
+
+function serializeServerWithExecStart(server: ServerWithAccess, execStart: string, role?: string) {
   return {
     id: server.id,
     name: server.name,
@@ -24,9 +37,9 @@ export function serializeServer(server: ServerWithAccess, role?: string) {
     status: server.status,
     displayOrder: server.displayOrder,
     systemdServiceName: role === "ADMIN" ? server.systemdServiceName : undefined,
-    execStart: server.execStart,
+    execStart,
     execStartBase: getExecStartBase(server.systemdServiceName),
-    execStartExtra: getExecStartExtra(server.execStart, server.systemdServiceName),
+    execStartExtra: getExecStartExtra(execStart, server.systemdServiceName),
     startupSettings: {
       fsGame: server.fsGame,
       punkbuster: server.punkbuster,
