@@ -11,6 +11,7 @@
     "db:init:sqlite": "tsx prisma/create-dev-db.ts",
     "db:seed": "prisma db seed",
     "monitor:alerts": "tsx scripts/monitor-alerts.ts",
+    "agent:start": "tsx scripts/agent.ts",
     "prisma:generate": "prisma generate"
   },
   "dependencies": {
