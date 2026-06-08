@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { lstat, readdir, readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { GAME_PROFILES, isGameKey, type GameKey } from "@/lib/game-profiles";
@@ -11,6 +11,9 @@ const BINARY_NAME_PATTERN = /^[a-zA-Z0-9_.\/-]+$/;
 const PATH_SEGMENT_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const SUDO_MKDIR = "/usr/bin/mkdir";
 const SUDO_CHOWN = "/usr/bin/chown";
+const SUDO_CHMOD = "/usr/bin/chmod";
+const SUDO_CP = "/usr/bin/cp";
+const SUDO_LN = "/usr/bin/ln";
 const SUDO_SYSTEMCTL = "/usr/bin/systemctl";
 const SUDO_TEE = "/usr/bin/tee";
 const SUDO_GROUPADD = "/usr/sbin/groupadd";
@@ -39,6 +42,10 @@ function getSystemdUnitDir() {
 
 function getGameServersRoot() {
   return process.env.GAME_SERVERS_ROOT || "/opt/game-servers";
+}
+
+function getCallOfDutyTemplateRoot() {
+  return process.env.CALL_OF_DUTY_TEMPLATE_ROOT || `${getGameServersRoot()}/game_root/callofduty`;
 }
 
 function getGameServerGroup() {
@@ -83,6 +90,101 @@ function getWorkingDirectoryFromExecStart(execStart: string) {
   }
 
   return binaryPath.slice(0, lastSlash);
+}
+
+async function pathExists(path: string) {
+  try {
+    await lstat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function sudoSymlinkContents(sourceDirectory: string, targetDirectory: string) {
+  const entries = await readdir(sourceDirectory);
+
+  for (const entry of entries) {
+    const sourcePath = `${sourceDirectory}/${entry}`;
+    const targetPath = `${targetDirectory}/${entry}`;
+
+    if (await pathExists(targetPath)) {
+      continue;
+    }
+
+    await execFileAsync("sudo", [SUDO_LN, "-s", sourcePath, targetPath], {
+      timeout: 10_000,
+      windowsHide: true,
+    });
+  }
+}
+
+async function sudoCopyFile(sourcePath: string, targetPath: string) {
+  await execFileAsync("sudo", [SUDO_CP, sourcePath, targetPath], {
+    timeout: 10_000,
+    windowsHide: true,
+  });
+}
+
+async function provisionCallOfDutyFiles({
+  game,
+  serverDir,
+  ownerFolder,
+}: {
+  game: GameKey;
+  serverDir: string;
+  ownerFolder: string;
+}) {
+  if (game !== "cod1" && game !== "coduo") {
+    return;
+  }
+
+  const templateRoot = getCallOfDutyTemplateRoot();
+  const owner = `${ownerFolder}:${getGameServerGroup()}`;
+  const linkedDirectories = game === "coduo" ? ["main", "pb", "uo"] : ["main", "pb"];
+  const binaryName = GAME_PROFILES[game].defaultBinaryName;
+  const configSource =
+    game === "coduo"
+      ? `${templateRoot}/server_uo_config.cfg`
+      : `${templateRoot}/server_cod1_config.cfg`;
+  const configTarget =
+    game === "coduo"
+      ? `${serverDir}/uo/server_config.cfg`
+      : `${serverDir}/main/server_config.cfg`;
+
+  for (const directory of linkedDirectories) {
+    await execFileAsync("sudo", [SUDO_MKDIR, "-p", `${serverDir}/${directory}`], {
+      timeout: 10_000,
+      windowsHide: true,
+    });
+    await execFileAsync("sudo", [SUDO_CHOWN, owner, `${serverDir}/${directory}`], {
+      timeout: 10_000,
+      windowsHide: true,
+    });
+  }
+
+  if (!(await pathExists(`${serverDir}/${binaryName}`))) {
+    await execFileAsync("sudo", [SUDO_LN, "-s", `${templateRoot}/${binaryName}`, `${serverDir}/${binaryName}`], {
+      timeout: 10_000,
+      windowsHide: true,
+    });
+  }
+
+  if (!(await pathExists(configTarget))) {
+    await sudoCopyFile(configSource, configTarget);
+    await execFileAsync("sudo", [SUDO_CHOWN, owner, configTarget], {
+      timeout: 10_000,
+      windowsHide: true,
+    });
+    await execFileAsync("sudo", [SUDO_CHMOD, "664", configTarget], {
+      timeout: 10_000,
+      windowsHide: true,
+    });
+  }
+
+  for (const directory of linkedDirectories) {
+    await sudoSymlinkContents(`${templateRoot}/${directory}`, `${serverDir}/${directory}`);
+  }
 }
 
 async function sudoWriteFile(filePath: string, content: string) {
@@ -209,7 +311,7 @@ export function buildProvisionedServerConfig({
   const execStart =
     game === "ts3"
       ? `${binaryPath} start default_voice_port=${port} query_port=10011 filetransfer_port=30033`
-      : `${binaryPath} +set fs_homepath ${workingDirectory} +set fs_basepath ${workingDirectory} +set dedicated 2 +set net_port ${port} +set sv_maxclients ${maxClients} +map_rotate`;
+      : `${binaryPath} +set fs_homepath ${workingDirectory} +set fs_basepath ${workingDirectory} +set dedicated 2 +set net_port ${port} +set sv_maxclients ${maxClients} +exec server_config.cfg +map_rotate`;
   const serviceExtra =
     game === "ts3"
       ? `Environment=TS3SERVER_LICENSE=accept\nExecStop=${binaryPath} stop\nExecReload=${binaryPath} restart\n`
@@ -271,6 +373,11 @@ export async function provisionSystemdServer(config: {
   await execFileAsync("sudo", [SUDO_CHOWN, owner, built.workingDirectory], {
     timeout: 10_000,
     windowsHide: true,
+  });
+  await provisionCallOfDutyFiles({
+    game: config.game as GameKey,
+    serverDir: built.serverDir,
+    ownerFolder: config.ownerFolder,
   });
   await sudoWriteFile(servicePath, built.serviceContent);
   await execFileAsync("sudo", [SUDO_SYSTEMCTL, "daemon-reload"], {
