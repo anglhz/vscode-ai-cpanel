@@ -109,7 +109,7 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [playerCounts, setPlayerCounts] = useState<Record<string, number>>({});
+  const [playerCounts, setPlayerCounts] = useState<Record<string, { count: number; maxClients: number | null }>>({});
 
   const isAdmin = currentUser.role === "ADMIN";
   const onlineCount = useMemo(
@@ -117,7 +117,7 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
     [servers],
   );
   const activePlayerCount = useMemo(
-    () => Object.values(playerCounts).reduce((total, count) => total + count, 0),
+    () => Object.values(playerCounts).reduce((total, players) => total + players.count, 0),
     [playerCounts],
   );
 
@@ -163,18 +163,20 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
         const response = await fetch(`/api/servers/${server.id}/players`);
 
         if (!response.ok) {
-          return [server.id, 0] as const;
+          return [server.id, { count: 0, maxClients: null }] as const;
         }
 
         const data = (await response.json()) as ServerPlayersDto;
-        return [server.id, data.playerCount] as const;
+        return [server.id, { count: data.playerCount, maxClients: data.maxClients }] as const;
       }),
     );
 
     setPlayerCounts(
       Object.fromEntries(
         results.map((result, index) =>
-          result.status === "fulfilled" ? result.value : ([gameServers[index].id, 0] as const),
+          result.status === "fulfilled"
+            ? result.value
+            : ([gameServers[index].id, { count: 0, maxClients: null }] as const),
         ),
       ),
     );
@@ -320,6 +322,7 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
               isAdmin={isAdmin}
               servers={servers}
               users={users}
+              playerCounts={playerCounts}
               reload={loadData}
               setMessage={setMessage}
             />
@@ -528,12 +531,14 @@ function ServersPanel({
   isAdmin,
   servers,
   users,
+  playerCounts,
   reload,
   setMessage,
 }: {
   isAdmin: boolean;
   servers: GameServerDto[];
   users: UserDto[];
+  playerCounts: Record<string, { count: number; maxClients: number | null }>;
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
 }) {
@@ -621,6 +626,7 @@ function ServersPanel({
               collapsed={Boolean(collapsedGames[group.gameKey])}
               dragging={draggedGameKey === group.gameKey}
               draggedServerId={draggedServerId}
+              playerCounts={playerCounts}
               isAdmin={isAdmin}
               reload={reload}
               setMessage={setMessage}
@@ -654,6 +660,7 @@ function GameServerGroup({
   collapsed,
   dragging,
   draggedServerId,
+  playerCounts,
   isAdmin,
   reload,
   setMessage,
@@ -669,6 +676,7 @@ function GameServerGroup({
   collapsed: boolean;
   dragging: boolean;
   draggedServerId: string;
+  playerCounts: Record<string, { count: number; maxClients: number | null }>;
   isAdmin: boolean;
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
@@ -739,6 +747,7 @@ function GameServerGroup({
             >
               <ServerRow
                 server={server}
+                playerSummary={playerCounts[server.id]}
                 isAdmin={isAdmin}
                 reload={reload}
                 setMessage={setMessage}
@@ -758,6 +767,7 @@ function GameServerGroup({
 
 function ServerRow({
   server,
+  playerSummary,
   isAdmin,
   reload,
   setMessage,
@@ -768,6 +778,7 @@ function ServerRow({
   onDropOnRow,
 }: {
   server: GameServerDto;
+  playerSummary?: { count: number; maxClients: number | null };
   isAdmin: boolean;
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
@@ -821,6 +832,10 @@ function ServerRow({
 
   const address = getServerAddress(server.execStart);
   const isOffline = server.status === "OFFLINE" || server.status === "UNKNOWN";
+  const rowPlayerSummary = players
+    ? { count: players.playerCount, maxClients: players.maxClients }
+    : playerSummary;
+  const playerSummaryLabel = formatPlayerSummary(rowPlayerSummary);
 
   return (
     <details
@@ -875,6 +890,11 @@ function ServerRow({
               <span className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${statusStyle[server.status]}`}>
                 {server.status}
               </span>
+              {playerSummaryLabel ? (
+                <span className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-0.5 font-mono text-sm font-semibold text-neutral-100">
+                  {playerSummaryLabel}
+                </span>
+              ) : null}
             </div>
             <p className="mt-1 truncate text-sm text-neutral-400 lg:hidden">{server.description}</p>
           </div>
@@ -1293,6 +1313,14 @@ function getServerAddress(execStart: string) {
 
 function stripCodColors(value: string) {
   return value.replace(/\^[0-9]/g, "");
+}
+
+function formatPlayerSummary(summary?: { count: number; maxClients: number | null }) {
+  if (!summary) {
+    return "";
+  }
+
+  return summary.maxClients ? `${summary.count}/${summary.maxClients}` : String(summary.count);
 }
 
 function getServerGame(server: GameServerDto) {
