@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { canAccessServer } from "@/lib/rbac";
 import { serializeServerWithEffectiveExecStart } from "@/lib/serializers";
 import { composeExecStartFromExisting } from "@/lib/exec-start";
-import { applySystemdExecStart } from "@/lib/systemd";
+import { applySystemdExecStart, deleteProvisionedServerDirectory } from "@/lib/systemd";
 
 const execStartSchema = z.string().min(1).max(1000).refine((value) => !/[\r\n]/.test(value), {
   message: "ExecStart must be a single line.",
@@ -120,6 +120,21 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 export async function DELETE(_: Request, context: { params: Promise<{ id: string }> }) {
   await requireAdmin();
   const { id } = await context.params;
+  const server = await prisma.gameServer.findUnique({ where: { id } });
+
+  if (!server) {
+    return NextResponse.json({ error: "Server not found." }, { status: 404 });
+  }
+
+  try {
+    await deleteProvisionedServerDirectory(server.systemdServiceName, server.execStart);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not delete server directory." },
+      { status: 500 },
+    );
+  }
+
   await prisma.gameServer.delete({ where: { id } });
 
   return NextResponse.json({ ok: true });

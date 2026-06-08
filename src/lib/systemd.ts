@@ -14,6 +14,7 @@ const SUDO_CHOWN = "/usr/bin/chown";
 const SUDO_CHMOD = "/usr/bin/chmod";
 const SUDO_CP = "/usr/bin/cp";
 const SUDO_LN = "/usr/bin/ln";
+const SUDO_RM = "/usr/bin/rm";
 const SUDO_SYSTEMCTL = "/usr/bin/systemctl";
 const SUDO_TEE = "/usr/bin/tee";
 const SUDO_GROUPADD = "/usr/sbin/groupadd";
@@ -90,6 +91,24 @@ function getWorkingDirectoryFromExecStart(execStart: string) {
   }
 
   return binaryPath.slice(0, lastSlash);
+}
+
+function getServerDirectoryFromExecStart(execStart: string) {
+  const binaryPath = execStart.trim().split(/\s+/, 1)[0];
+  const root = getGameServersRoot();
+
+  if (!binaryPath.startsWith(`${root}/`) || binaryPath.includes("..")) {
+    throw new Error("Server path must be inside the game servers root.");
+  }
+
+  const parts = binaryPath.slice(root.length + 1).split("/");
+  const [ownerFolder, game, port] = parts;
+
+  assertSafePathSegment(ownerFolder, "owner folder");
+  assertSafeGameKey(game);
+  assertSafePort(Number(port));
+
+  return `${root}/${ownerFolder}/${game}/${port}`;
 }
 
 async function pathExists(path: string) {
@@ -273,6 +292,22 @@ export async function getEffectiveSystemdExecStart(serviceName: string, fallback
   } catch {
     return fallbackExecStart;
   }
+}
+
+export async function deleteProvisionedServerDirectory(serviceName: string, fallbackExecStart: string) {
+  const effectiveExecStart = await getEffectiveSystemdExecStart(serviceName, fallbackExecStart);
+  const serverDirectory = getServerDirectoryFromExecStart(effectiveExecStart);
+
+  if (process.env.SYSTEMD_SERVER_PROVISIONING_ENABLED !== "true") {
+    return { skipped: true, serverDirectory };
+  }
+
+  await execFileAsync("sudo", [SUDO_RM, "-rf", serverDirectory], {
+    timeout: 30_000,
+    windowsHide: true,
+  });
+
+  return { skipped: false, serverDirectory };
 }
 
 export function buildProvisionedServerConfig({
