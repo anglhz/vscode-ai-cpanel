@@ -5,8 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { canAccessServer } from "@/lib/rbac";
 import { queryTeamSpeakPlayers } from "@/lib/teamspeak-query";
 
-function getPublicIp() {
-  return process.env.SERVER_PUBLIC_IP ?? process.env.NEXT_PUBLIC_SERVER_PUBLIC_IP ?? "144.76.41.252";
+function getPublicIp(node?: { publicIp: string } | null) {
+  return node?.publicIp || process.env.SERVER_PUBLIC_IP || process.env.NEXT_PUBLIC_SERVER_PUBLIC_IP || "144.76.41.252";
 }
 
 function getPortFromExecStart(execStart: string) {
@@ -41,7 +41,10 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const server = await prisma.gameServer.findUnique({ where: { id } });
+  const server = await prisma.gameServer.findUnique({
+    where: { id },
+    include: { node: true },
+  });
 
   if (!server) {
     return NextResponse.json({ error: "Server not found." }, { status: 404 });
@@ -63,7 +66,7 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
           queryPort: Number(getTeamSpeakQueryPort(server.execStart)),
           voicePort: Number(port),
         })
-      : await queryGameServerPlayers(getPublicIp(), Number(port));
+      : await queryGameServerPlayers(getPublicIp(server.node), Number(port));
     return NextResponse.json(players);
   } catch (error) {
     return NextResponse.json(

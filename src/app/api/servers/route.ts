@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdmin, requireUser } from "@/lib/auth";
 import { GAME_KEYS } from "@/lib/game-profiles";
+import { isLocalNode, remoteProvisionServer } from "@/lib/node-client";
 import { prisma } from "@/lib/prisma";
 import { serializeServerWithEffectiveExecStart } from "@/lib/serializers";
 import { provisionSystemdServer } from "@/lib/systemd";
@@ -12,6 +13,7 @@ const serverSchema = z.object({
   name: z.string().min(2),
   description: z.string().min(2),
   ownerUserId: z.string().min(1),
+  nodeId: z.string().min(1).default("local"),
   game: z.enum(GAME_KEYS),
   port: z.coerce.number().int().min(1024).max(65535),
   maxClients: z.coerce.number().int().min(1).max(128).default(12),
@@ -33,14 +35,14 @@ export async function GET() {
 async function getVisibleServers(user: Awaited<ReturnType<typeof requireUser>>) {
   if (user.role === "ADMIN") {
     return prisma.gameServer.findMany({
-      include: { assignedUsers: true },
+      include: { assignedUsers: true, node: true },
       orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
     });
   }
 
   const accessRows = await prisma.userServerAccess.findMany({
     where: { userId: user.id },
-    include: { server: { include: { assignedUsers: true } } },
+    include: { server: { include: { assignedUsers: true, node: true } } },
     orderBy: [{ displayOrder: "asc" }, { server: { name: "asc" } }],
   });
 
@@ -67,16 +69,27 @@ export async function POST(request: Request) {
     );
   }
 
+  const node = await prisma.serverNode.findUnique({
+    where: { id: parsed.data.nodeId },
+  });
+
+  if (!node) {
+    return NextResponse.json({ error: "Selected node was not found." }, { status: 400 });
+  }
+
   let provisioned;
   try {
-    provisioned = await provisionSystemdServer({
+    const provisionPayload = {
       name: parsed.data.name,
       ownerFolder: ownerUser.sftpUsername,
       game: parsed.data.game,
       port: parsed.data.port,
       maxClients: parsed.data.maxClients,
       binaryName: parsed.data.binaryName,
-    });
+    };
+    provisioned = isLocalNode(node)
+      ? await provisionSystemdServer(provisionPayload)
+      : await remoteProvisionServer(node, provisionPayload);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not provision server." },
@@ -90,6 +103,7 @@ export async function POST(request: Request) {
       data: {
         name: parsed.data.name,
         description: parsed.data.description,
+        nodeId: node.id,
         systemdServiceName: provisioned.serviceName,
         execStart: provisioned.execStart,
         status: parsed.data.status ?? "UNKNOWN",

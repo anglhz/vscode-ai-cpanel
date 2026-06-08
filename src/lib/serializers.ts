@@ -14,6 +14,12 @@ type ServerWithAccess = {
   extraParameters: string;
   status: string;
   displayOrder: number;
+  node?: {
+    id: string;
+    name: string;
+    publicIp: string;
+    isLocal: boolean;
+  } | null;
   assignedUsers?: { userId: string }[];
 };
 
@@ -36,6 +42,14 @@ function serializeServerWithExecStart(server: ServerWithAccess, execStart: strin
     description: server.description,
     status: server.status,
     displayOrder: server.displayOrder,
+    node: server.node
+      ? {
+          id: server.node.id,
+          name: server.node.name,
+          publicIp: server.node.publicIp,
+          isLocal: server.node.isLocal,
+        }
+      : null,
     systemdServiceName: role === "ADMIN" ? server.systemdServiceName : undefined,
     execStart,
     execStartBase: getExecStartBase(server.systemdServiceName),

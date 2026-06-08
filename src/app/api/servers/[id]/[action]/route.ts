@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { isLocalNode, remoteRunServerAction } from "@/lib/node-client";
 import { prisma } from "@/lib/prisma";
 import { canAccessServer } from "@/lib/rbac";
 import { isServerAction, runSystemdAction } from "@/lib/systemd";
@@ -31,14 +32,21 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const server = await prisma.gameServer.findUnique({ where: { id } });
+  const server = await prisma.gameServer.findUnique({
+    where: { id },
+    include: { node: true },
+  });
 
   if (!server) {
     return NextResponse.json({ error: "Server not found." }, { status: 404 });
   }
 
   try {
-    await runSystemdAction(server.systemdServiceName, action);
+    if (!server.node || isLocalNode(server.node)) {
+      await runSystemdAction(server.systemdServiceName, action);
+    } else {
+      await remoteRunServerAction(server.node, server.systemdServiceName, action);
+    }
     const updated = await prisma.gameServer.update({
       where: { id },
       data: {

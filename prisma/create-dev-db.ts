@@ -20,8 +20,22 @@ async function main() {
   `);
 
   await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "ServerNode" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "baseUrl" TEXT NOT NULL,
+      "publicIp" TEXT NOT NULL DEFAULT '',
+      "apiToken" TEXT NOT NULL,
+      "isLocal" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL
+    );
+  `);
+
+  await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "GameServer" (
       "id" TEXT NOT NULL PRIMARY KEY,
+      "nodeId" TEXT,
       "name" TEXT NOT NULL,
       "description" TEXT NOT NULL,
       "systemdServiceName" TEXT NOT NULL,
@@ -60,6 +74,7 @@ async function main() {
   `);
 
   await addColumnIfMissing("execStart", `TEXT NOT NULL DEFAULT ''`);
+  await addColumnIfMissing("nodeId", `TEXT`);
   await addColumnIfMissing("fsGame", `TEXT NOT NULL DEFAULT ''`);
   await addColumnIfMissing("punkbuster", `BOOLEAN NOT NULL DEFAULT false`);
   await addColumnIfMissing("configFile", `TEXT NOT NULL DEFAULT ''`);
@@ -74,6 +89,12 @@ async function main() {
   await prisma.$executeRawUnsafe(`
     CREATE UNIQUE INDEX IF NOT EXISTS "User_sftpUsername_key" ON "User"("sftpUsername");
   `);
+
+  await prisma.$executeRaw`
+    INSERT INTO "ServerNode" ("id", "name", "baseUrl", "publicIp", "apiToken", "isLocal", "updatedAt")
+    SELECT 'local', 'Local machine', 'local', COALESCE(NULLIF(${process.env.SERVER_PUBLIC_IP ?? ""}, ''), '127.0.0.1'), '', true, CURRENT_TIMESTAMP
+    WHERE NOT EXISTS (SELECT 1 FROM "ServerNode" WHERE "id" = 'local');
+  `;
 }
 
 async function addUserColumnIfMissing(name: string, definition: string) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdmin, requireUser } from "@/lib/auth";
+import { isLocalNode, remoteDeleteServer } from "@/lib/node-client";
 import { prisma } from "@/lib/prisma";
 import { canAccessServer } from "@/lib/rbac";
 import { serializeServerWithEffectiveExecStart } from "@/lib/serializers";
@@ -120,14 +121,21 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 export async function DELETE(_: Request, context: { params: Promise<{ id: string }> }) {
   await requireAdmin();
   const { id } = await context.params;
-  const server = await prisma.gameServer.findUnique({ where: { id } });
+  const server = await prisma.gameServer.findUnique({
+    where: { id },
+    include: { node: true },
+  });
 
   if (!server) {
     return NextResponse.json({ error: "Server not found." }, { status: 404 });
   }
 
   try {
-    await deleteProvisionedServerDirectory(server.systemdServiceName, server.execStart);
+    if (!server.node || isLocalNode(server.node)) {
+      await deleteProvisionedServerDirectory(server.systemdServiceName, server.execStart);
+    } else {
+      await remoteDeleteServer(server.node, server.systemdServiceName, server.execStart);
+    }
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not delete server directory." },

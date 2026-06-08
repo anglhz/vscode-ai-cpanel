@@ -3,18 +3,23 @@ import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
 
 async function main() {
-  const [{ prisma }, { handleServerStatusAlert }, { getSystemdStatus }] = await Promise.all([
+  const [{ prisma }, { handleServerStatusAlert }, { isLocalNode, remoteGetServerStatus }, { getSystemdStatus }] = await Promise.all([
     import("@/lib/prisma"),
     import("@/lib/server-alerts"),
+    import("@/lib/node-client"),
     import("@/lib/systemd"),
   ]);
   const servers = await prisma.gameServer.findMany({
+    include: { node: true },
     orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
   });
 
   for (const server of servers) {
     try {
-      const liveStatus = await getSystemdStatus(server.systemdServiceName);
+      const liveStatus =
+        !server.node || isLocalNode(server.node)
+          ? await getSystemdStatus(server.systemdServiceName)
+          : await remoteGetServerStatus(server.node, server.systemdServiceName);
       await handleServerStatusAlert(server, liveStatus);
 
       if (liveStatus !== "UNKNOWN" && liveStatus !== server.status) {

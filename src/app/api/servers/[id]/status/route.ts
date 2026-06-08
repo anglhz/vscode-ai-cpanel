@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { isLocalNode, remoteGetServerStatus } from "@/lib/node-client";
 import { prisma } from "@/lib/prisma";
 import { canAccessServer } from "@/lib/rbac";
 import { handleServerStatusAlert } from "@/lib/server-alerts";
@@ -13,13 +14,19 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const server = await prisma.gameServer.findUnique({ where: { id } });
+  const server = await prisma.gameServer.findUnique({
+    where: { id },
+    include: { node: true },
+  });
 
   if (!server) {
     return NextResponse.json({ error: "Server not found." }, { status: 404 });
   }
 
-  const liveStatus = await getSystemdStatus(server.systemdServiceName);
+  const liveStatus =
+    !server.node || isLocalNode(server.node)
+      ? await getSystemdStatus(server.systemdServiceName)
+      : await remoteGetServerStatus(server.node, server.systemdServiceName);
   await handleServerStatusAlert(server, liveStatus);
   const updated =
     liveStatus === "UNKNOWN"

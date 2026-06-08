@@ -32,6 +32,7 @@ type GameServerDto = {
   description: string;
   status: ServerStatus;
   displayOrder: number;
+  node: NodeDto | null;
   systemdServiceName?: string;
   execStart: string;
   execStartBase: string | null;
@@ -53,6 +54,15 @@ type UserDto = {
   role: Role;
   sftpUsername: string | null;
   serverIds: string[];
+};
+
+type NodeDto = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  publicIp: string;
+  hasApiToken: boolean;
+  isLocal: boolean;
 };
 
 type ServerPlayersDto = {
@@ -103,9 +113,10 @@ const SERVER_GAME_LABELS: Record<string, string> = Object.fromEntries(
 );
 
 export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
-  const [view, setView] = useState<"servers" | "users">("servers");
+  const [view, setView] = useState<"servers" | "users" | "nodes">("servers");
   const [servers, setServers] = useState<GameServerDto[]>([]);
   const [users, setUsers] = useState<UserDto[]>([]);
+  const [nodes, setNodes] = useState<NodeDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -133,6 +144,12 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
       if (userResponse.ok) {
         const data = await userResponse.json();
         setUsers(data.users);
+      }
+
+      const nodeResponse = await fetch("/api/nodes");
+      if (nodeResponse.ok) {
+        const data = await nodeResponse.json();
+        setNodes(data.nodes);
       }
     }
 
@@ -268,6 +285,11 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
               Users
             </NavButton>
           ) : null}
+          {isAdmin ? (
+            <NavButton active={view === "nodes"} onClick={() => setView("nodes")} icon={Server} collapsed={sidebarCollapsed}>
+              Nodes
+            </NavButton>
+          ) : null}
         </nav>
         <button
           onClick={logout}
@@ -288,7 +310,7 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
             <div>
               <p className="text-sm text-cyan-200">Signed in as {currentUser.name}</p>
               <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                {view === "users" ? "User Access" : "Server Control"}
+                {view === "users" ? "User Access" : view === "nodes" ? "Server Nodes" : "Server Control"}
               </h1>
             </div>
             <div className="hidden items-center gap-3 sm:flex">
@@ -315,6 +337,8 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-6 text-neutral-300">
               Loading panel...
             </div>
+          ) : view === "nodes" && isAdmin ? (
+            <NodesPanel nodes={nodes} reload={loadData} setMessage={setMessage} />
           ) : view === "users" && isAdmin ? (
             <UsersPanel users={users} servers={servers} reload={loadData} setMessage={setMessage} />
           ) : (
@@ -322,6 +346,7 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
               isAdmin={isAdmin}
               servers={servers}
               users={users}
+              nodes={nodes}
               playerCounts={playerCounts}
               reload={loadData}
               setMessage={setMessage}
@@ -531,6 +556,7 @@ function ServersPanel({
   isAdmin,
   servers,
   users,
+  nodes,
   playerCounts,
   reload,
   setMessage,
@@ -538,6 +564,7 @@ function ServersPanel({
   isAdmin: boolean;
   servers: GameServerDto[];
   users: UserDto[];
+  nodes: NodeDto[];
   playerCounts: Record<string, { count: number; maxClients: number | null }>;
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
@@ -611,7 +638,7 @@ function ServersPanel({
 
   return (
     <div className="space-y-6">
-      {isAdmin ? <ServerForm users={users} reload={reload} setMessage={setMessage} /> : null}
+      {isAdmin ? <ServerForm users={users} nodes={nodes} reload={reload} setMessage={setMessage} /> : null}
       <div className="overflow-hidden rounded-lg border border-white/10 bg-[#09111d]/70 shadow-2xl shadow-black/25 backdrop-blur-xl">
         <div className="hidden grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.7fr)_minmax(230px,0.9fr)] border-b border-white/10 bg-white/[0.07] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-300 lg:grid">
           <span>Server name</span>
@@ -830,7 +857,7 @@ function ServerRow({
     setPlayers(await response.json());
   }
 
-  const address = getServerAddress(server.execStart);
+  const address = getServerAddress(server);
   const isOffline = server.status === "OFFLINE" || server.status === "UNKNOWN";
   const rowPlayerSummary = players
     ? { count: players.playerCount, maxClients: players.maxClients }
@@ -1305,10 +1332,11 @@ function ActionButton({
   );
 }
 
-function getServerAddress(execStart: string) {
-  const port = execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1] ?? execStart.match(/default_voice_port=(\d+)/)?.[1];
+function getServerAddress(server: GameServerDto) {
+  const port = server.execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1] ?? server.execStart.match(/default_voice_port=(\d+)/)?.[1];
+  const ip = server.node?.publicIp || SERVER_PUBLIC_IP;
 
-  return port ? `${SERVER_PUBLIC_IP}:${port}` : "Port unknown";
+  return port ? `${ip}:${port}` : "Port unknown";
 }
 
 function stripCodColors(value: string) {
@@ -1359,10 +1387,12 @@ function isQueryableGameServer(server: GameServerDto) {
 
 function ServerForm({
   users,
+  nodes,
   reload,
   setMessage,
 }: {
   users: UserDto[];
+  nodes: NodeDto[];
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
 }) {
@@ -1383,6 +1413,7 @@ function ServerForm({
         name: formData.get("name"),
         description: formData.get("description"),
         ownerUserId: formData.get("ownerUserId"),
+        nodeId: formData.get("nodeId"),
         game: formData.get("game"),
         port: formData.get("port"),
         maxClients: formData.get("maxClients"),
@@ -1421,9 +1452,22 @@ function ServerForm({
 
       {open ? (
         <form onSubmit={submit} className="mt-4 border-t border-white/10 pt-4">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px_180px_120px]">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px_180px_180px_120px]">
             <Input name="name" placeholder="Server name" />
             <Input name="description" placeholder="Description" />
+            <select
+              name="nodeId"
+              required
+              defaultValue={nodes.find((node) => node.isLocal)?.id ?? nodes[0]?.id ?? ""}
+              className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none ring-cyan-400/20 transition focus:border-cyan-300 focus:ring-4"
+            >
+              <option value="">Machine</option>
+              {nodes.map((node) => (
+                <option key={node.id} value={node.id}>
+                  {node.name}
+                </option>
+              ))}
+            </select>
             <select
               name="ownerUserId"
               required
@@ -1498,6 +1542,174 @@ function ServerForm({
         </form>
       ) : null}
     </section>
+  );
+}
+
+function NodesPanel({
+  nodes,
+  reload,
+  setMessage,
+}: {
+  nodes: NodeDto[];
+  reload: () => Promise<void>;
+  setMessage: (message: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const response = await fetch("/api/nodes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: formData.get("name"),
+        baseUrl: formData.get("baseUrl"),
+        publicIp: formData.get("publicIp"),
+        apiToken: formData.get("apiToken"),
+        isLocal: formData.get("isLocal") === "on",
+      }),
+    });
+
+    if (response.ok) {
+      form.reset();
+      setOpen(false);
+      setMessage("Node created.");
+      await reload();
+    } else {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setMessage(data?.error ?? "Could not create node.");
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-white">Machines</p>
+            <p className="text-sm text-neutral-400">Register local or remote Ubuntu machines that can host services.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200"
+          >
+            <Plus className="h-4 w-4" />
+            Add node
+          </button>
+        </div>
+
+        {open ? (
+          <form onSubmit={submit} className="mt-4 border-t border-white/10 pt-4">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_180px_minmax(0,1fr)]">
+              <Input name="name" placeholder="Machine name" />
+              <Input name="baseUrl" placeholder="https://node.example.com:8443 or local" />
+              <Input name="publicIp" placeholder="Public IP" />
+              <Input name="apiToken" placeholder="Agent token" required={false} />
+            </div>
+            <label className="mt-3 flex min-h-10 items-center gap-2 text-sm text-neutral-300">
+              <input name="isLocal" type="checkbox" className="h-4 w-4 accent-cyan-300" />
+              This is the same machine as the panel
+            </label>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button className="flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+                <Plus className="h-4 w-4" />
+                Create node
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="h-10 rounded-md border border-white/10 px-4 text-sm font-semibold text-neutral-300 transition hover:bg-white/5"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </section>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {nodes.map((node) => (
+          <NodeEditor key={node.id} node={node} reload={reload} setMessage={setMessage} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NodeEditor({
+  node,
+  reload,
+  setMessage,
+}: {
+  node: NodeDto;
+  reload: () => Promise<void>;
+  setMessage: (message: string) => void;
+}) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const response = await fetch(`/api/nodes/${node.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: formData.get("name"),
+        baseUrl: formData.get("baseUrl"),
+        publicIp: formData.get("publicIp"),
+        apiToken: formData.get("apiToken") || undefined,
+        isLocal: formData.get("isLocal") === "on",
+      }),
+    });
+
+    setMessage(response.ok ? "Node updated." : "Could not update node.");
+    await reload();
+  }
+
+  async function removeNode() {
+    const response = await fetch(`/api/nodes/${node.id}`, { method: "DELETE" });
+    const data = (await response.json().catch(() => null)) as { error?: string } | null;
+    setMessage(response.ok ? "Node deleted." : data?.error ?? "Could not delete node.");
+    await reload();
+  }
+
+  return (
+    <form onSubmit={submit} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-white">{node.name}</p>
+          <p className="mt-1 text-sm text-neutral-500">{node.isLocal ? "Local node" : "Remote agent"}</p>
+        </div>
+        <span className="rounded-md border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-xs font-semibold text-cyan-100">
+          {node.publicIp}
+        </span>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <Input name="name" defaultValue={node.name} placeholder="Machine name" />
+        <Input name="publicIp" defaultValue={node.publicIp} placeholder="Public IP" />
+        <Input name="baseUrl" defaultValue={node.baseUrl} placeholder="Agent URL" />
+        <Input name="apiToken" placeholder={node.hasApiToken ? "New token optional" : "Agent token"} required={false} />
+      </div>
+      <label className="mt-3 flex min-h-10 items-center gap-2 text-sm text-neutral-300">
+        <input name="isLocal" type="checkbox" defaultChecked={node.isLocal} className="h-4 w-4 accent-cyan-300" />
+        This is the same machine as the panel
+      </label>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={removeNode}
+          disabled={node.id === "local"}
+          className="flex h-10 items-center gap-2 rounded-md border border-red-400/30 px-4 text-sm font-semibold text-red-200 transition hover:bg-red-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete
+        </button>
+      </div>
+    </form>
   );
 }
 
