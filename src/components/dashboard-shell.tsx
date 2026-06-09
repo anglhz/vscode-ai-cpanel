@@ -1800,7 +1800,12 @@ function TeamSpeakCard({
       }),
     });
 
-    setMessage(response.ok ? "TeamSpeak connection updated." : "Could not update TeamSpeak connection.");
+    if (response.ok) {
+      setMessage("TeamSpeak connection updated.");
+    } else {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setMessage(data?.error ?? "Could not update TeamSpeak connection.");
+    }
     await reload();
   }
 

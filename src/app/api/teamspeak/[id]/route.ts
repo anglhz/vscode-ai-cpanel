@@ -57,8 +57,15 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
     return NextResponse.json({ error: "TeamSpeak server not found." }, { status: 404 });
   }
 
-  const live = await getTeamSpeakLiveInfo(server);
-  return NextResponse.json(live);
+  try {
+    const live = await getTeamSpeakLiveInfo(server);
+    return NextResponse.json(live);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not load TeamSpeak data." },
+      { status: 502 },
+    );
+  }
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -113,7 +120,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "Invalid TeamSpeak settings." }, { status: 400 });
   }
 
-  await updateTeamSpeakVirtualServer(server, parsed.data);
+  try {
+    await updateTeamSpeakVirtualServer(server, parsed.data);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not save TeamSpeak settings." },
+      { status: 502 },
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }
