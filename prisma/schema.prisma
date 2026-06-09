@@ -72,6 +72,8 @@ model TeamSpeakServer {
   queryPort      Int                   @default(10011)
   voicePort      Int                   @default(9987)
   apiKey         String
+  queryUsername  String                @default("")
+  queryPassword  String                @default("")
   assignedUsers  UserTeamSpeakAccess[]
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt

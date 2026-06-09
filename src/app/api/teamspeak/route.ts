@@ -9,8 +9,12 @@ const teamspeakSchema = z.object({
   host: z.string().min(2),
   queryPort: z.coerce.number().int().min(1).max(65535).default(10011),
   voicePort: z.coerce.number().int().min(1).max(65535).default(9987),
-  apiKey: z.string().min(10),
+  apiKey: z.string().optional().default(""),
+  queryUsername: z.string().optional().default(""),
+  queryPassword: z.string().optional().default(""),
   assignedUserIds: z.array(z.string()).default([]),
+}).refine((value) => value.apiKey || (value.queryUsername && value.queryPassword), {
+  message: "API key or ServerQuery login is required.",
 });
 
 function serializeTeamSpeak(server: {
@@ -21,6 +25,8 @@ function serializeTeamSpeak(server: {
   queryPort: number;
   voicePort: number;
   apiKey: string;
+  queryUsername: string;
+  queryPassword: string;
   assignedUsers?: { userId: string }[];
 }) {
   return {
@@ -31,6 +37,8 @@ function serializeTeamSpeak(server: {
     queryPort: server.queryPort,
     voicePort: server.voicePort,
     hasApiKey: Boolean(server.apiKey),
+    hasQueryPassword: Boolean(server.queryPassword),
+    queryUsername: server.queryUsername,
     assignedUserIds: server.assignedUsers?.map((access) => access.userId) ?? [],
   };
 }
@@ -71,6 +79,8 @@ export async function POST(request: Request) {
       queryPort: parsed.data.queryPort,
       voicePort: parsed.data.voicePort,
       apiKey: parsed.data.apiKey,
+      queryUsername: parsed.data.queryUsername,
+      queryPassword: parsed.data.queryPassword,
       assignedUsers: {
         create: parsed.data.assignedUserIds.map((userId) => ({ userId })),
       },

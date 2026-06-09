@@ -99,6 +99,8 @@ type TeamSpeakServerDto = {
   queryPort: number;
   voicePort: number;
   hasApiKey: boolean;
+  hasQueryPassword: boolean;
+  queryUsername: string;
   assignedUserIds: string[];
 };
 
@@ -1657,6 +1659,8 @@ function TeamSpeakForm({
         queryPort: formData.get("queryPort"),
         voicePort: formData.get("voicePort"),
         apiKey: formData.get("apiKey"),
+        queryUsername: formData.get("queryUsername"),
+        queryPassword: formData.get("queryPassword"),
         assignedUserIds: formData.getAll("assignedUserIds"),
       }),
     });
@@ -1698,7 +1702,11 @@ function TeamSpeakForm({
             <Input name="voicePort" type="number" defaultValue={9987} placeholder="9987" />
           </div>
           <Input name="description" placeholder="Description" required={false} />
-          <Input name="apiKey" placeholder="ServerQuery API key" />
+          <div className="grid gap-3 lg:grid-cols-3">
+            <Input name="apiKey" placeholder="ServerQuery API key optional" required={false} />
+            <Input name="queryUsername" placeholder="Query login, e.g. serveradmin" required={false} />
+            <Input name="queryPassword" type="password" placeholder="Query password optional" required={false} />
+          </div>
           <div className="rounded-lg border border-white/10 bg-[#07111f]/70 p-3">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Assign users</p>
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -1796,6 +1804,8 @@ function TeamSpeakCard({
         queryPort: formData.get("queryPort"),
         voicePort: formData.get("voicePort"),
         apiKey: formData.get("apiKey") || undefined,
+        queryUsername: formData.get("queryUsername") || undefined,
+        queryPassword: formData.get("queryPassword") || undefined,
         assignedUserIds: formData.getAll("assignedUserIds"),
       }),
     });
@@ -1875,6 +1885,8 @@ function TeamSpeakCard({
               <Input name="description" defaultValue={server.description} placeholder="Description" required={false} />
               <Input name="host" defaultValue={server.host} placeholder="Host" />
               <Input name="apiKey" placeholder={server.hasApiKey ? "New API key optional" : "API key"} required={false} />
+              <Input name="queryUsername" defaultValue={server.queryUsername} placeholder="Query login" required={false} />
+              <Input name="queryPassword" type="password" placeholder={server.hasQueryPassword ? "New query password optional" : "Query password"} required={false} />
               <Input name="queryPort" type="number" defaultValue={server.queryPort} placeholder="Query port" />
               <Input name="voicePort" type="number" defaultValue={server.voicePort} placeholder="Voice port" />
             </div>

@@ -74,6 +74,8 @@ async function main() {
       "queryPort" INTEGER NOT NULL DEFAULT 10011,
       "voicePort" INTEGER NOT NULL DEFAULT 9987,
       "apiKey" TEXT NOT NULL,
+      "queryUsername" TEXT NOT NULL DEFAULT '',
+      "queryPassword" TEXT NOT NULL DEFAULT '',
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL
     );
@@ -107,6 +109,8 @@ async function main() {
   await addColumnIfMissing("desiredState", `TEXT NOT NULL DEFAULT 'STOPPED'`);
   await addColumnIfMissing("lastDownAlertAt", `DATETIME`);
   await addColumnIfMissing("displayOrder", `INTEGER NOT NULL DEFAULT 0`);
+  await addTeamSpeakColumnIfMissing("queryUsername", `TEXT NOT NULL DEFAULT ''`);
+  await addTeamSpeakColumnIfMissing("queryPassword", `TEXT NOT NULL DEFAULT ''`);
   await addAccessColumnIfMissing("displayOrder", `INTEGER NOT NULL DEFAULT 0`);
   await addUserColumnIfMissing("sftpUsername", `TEXT`);
 
@@ -137,6 +141,18 @@ async function addColumnIfMissing(name: string, definition: string) {
   try {
     await prisma.$executeRawUnsafe(`
       ALTER TABLE "GameServer" ADD COLUMN "${name}" ${definition};
+    `);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("duplicate column name")) {
+      throw error;
+    }
+  }
+}
+
+async function addTeamSpeakColumnIfMissing(name: string, definition: string) {
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "TeamSpeakServer" ADD COLUMN "${name}" ${definition};
     `);
   } catch (error) {
     if (!(error instanceof Error) || !error.message.includes("duplicate column name")) {

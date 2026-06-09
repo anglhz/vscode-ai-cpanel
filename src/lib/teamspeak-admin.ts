@@ -61,12 +61,16 @@ async function runServerQuery({
   host,
   queryPort,
   apiKey,
+  queryUsername,
+  queryPassword,
   voicePort,
   commands,
 }: {
   host: string;
   queryPort: number;
   apiKey: string;
+  queryUsername?: string;
+  queryPassword?: string;
   voicePort: number;
   commands: string[];
 }) {
@@ -89,7 +93,11 @@ async function runServerQuery({
 
       if (!sent && buffer.includes("TS3")) {
         sent = true;
-        socket.write(`auth apikey=${escapeServerQueryValue(apiKey)}\r\n`);
+        if (apiKey) {
+          socket.write(`auth apikey=${escapeServerQueryValue(apiKey)}\r\n`);
+        } else if (queryUsername && queryPassword) {
+          socket.write(`login ${escapeServerQueryValue(queryUsername)} ${escapeServerQueryValue(queryPassword)}\r\n`);
+        }
         socket.write(`use port=${voicePort}\r\n`);
         for (const command of commands) {
           socket.write(`${command}\r\n`);
@@ -146,11 +154,21 @@ export async function getTeamSpeakLiveInfo(config: {
   queryPort: number;
   voicePort: number;
   apiKey: string;
+  queryUsername?: string;
+  queryPassword?: string;
 }) {
-  const result = await runServerQuery({
-    ...config,
-    commands: ["serverinfo", "clientlist"],
-  });
+  const commands = ["serverinfo", "clientlist"];
+  let result: CommandResult;
+
+  try {
+    result = await runServerQuery({ ...config, commands });
+  } catch (error) {
+    if (!config.apiKey || !config.queryUsername || !config.queryPassword || !String(error).includes("command not found")) {
+      throw error;
+    }
+
+    result = await runServerQuery({ ...config, apiKey: "", commands });
+  }
   const serverInfo = parseFields(result.lines.find((line) => line.includes("virtualserver_name=")) ?? "");
   const clients = parseTeamSpeakClients(result.lines.find((line) => line.includes("clid=")) ?? "");
   const queryClients = clients.filter((client) => client.type === "1").length;
@@ -175,6 +193,8 @@ export async function updateTeamSpeakVirtualServer(
     queryPort: number;
     voicePort: number;
     apiKey: string;
+    queryUsername?: string;
+    queryPassword?: string;
   },
   settings: {
     virtualserverName: string;
@@ -182,12 +202,19 @@ export async function updateTeamSpeakVirtualServer(
     maxClients: number;
   },
 ) {
-  await runServerQuery({
-    ...config,
-    commands: [
-      `serveredit virtualserver_name=${escapeServerQueryValue(settings.virtualserverName)} virtualserver_welcomemessage=${escapeServerQueryValue(settings.welcomeMessage)} virtualserver_maxclients=${settings.maxClients}`,
-    ],
-  });
+  const commands = [
+    `serveredit virtualserver_name=${escapeServerQueryValue(settings.virtualserverName)} virtualserver_welcomemessage=${escapeServerQueryValue(settings.welcomeMessage)} virtualserver_maxclients=${settings.maxClients}`,
+  ];
+
+  try {
+    await runServerQuery({ ...config, commands });
+  } catch (error) {
+    if (!config.apiKey || !config.queryUsername || !config.queryPassword || !String(error).includes("command not found")) {
+      throw error;
+    }
+
+    await runServerQuery({ ...config, apiKey: "", commands });
+  }
 }
 
 function parseTeamSpeakClients(line: string) {

@@ -12,6 +12,8 @@ const updateSchema = z.object({
   queryPort: z.coerce.number().int().min(1).max(65535),
   voicePort: z.coerce.number().int().min(1).max(65535),
   apiKey: z.string().optional().or(z.literal("")),
+  queryUsername: z.string().optional().or(z.literal("")),
+  queryPassword: z.string().optional().or(z.literal("")),
   assignedUserIds: z.array(z.string()).default([]),
 });
 
@@ -29,6 +31,8 @@ function serializeTeamSpeak(server: {
   queryPort: number;
   voicePort: number;
   apiKey: string;
+  queryUsername: string;
+  queryPassword: string;
   assignedUsers?: { userId: string }[];
 }) {
   return {
@@ -39,6 +43,8 @@ function serializeTeamSpeak(server: {
     queryPort: server.queryPort,
     voicePort: server.voicePort,
     hasApiKey: Boolean(server.apiKey),
+    hasQueryPassword: Boolean(server.queryPassword),
+    queryUsername: server.queryUsername,
     assignedUserIds: server.assignedUsers?.map((access) => access.userId) ?? [],
   };
 }
@@ -99,6 +105,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           queryPort: parsed.data.queryPort,
           voicePort: parsed.data.voicePort,
           ...(parsed.data.apiKey ? { apiKey: parsed.data.apiKey } : {}),
+          queryUsername: parsed.data.queryUsername ?? "",
+          ...(parsed.data.queryPassword ? { queryPassword: parsed.data.queryPassword } : {}),
           assignedUsers: {
             create: parsed.data.assignedUserIds.map((userId) => ({ userId })),
           },
