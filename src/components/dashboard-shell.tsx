@@ -1628,7 +1628,7 @@ function TeamSpeakPanel({
   return (
     <div className="space-y-6">
       {isAdmin ? <TeamSpeakForm users={users} reload={reload} setMessage={setMessage} /> : null}
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4">
         {servers.map((server) => (
           <TeamSpeakCard
             key={server.id}
@@ -1950,26 +1950,47 @@ function TeamSpeakCard({
       ) : null}
       {error ? <p className="mt-3 text-sm text-red-200">{error}</p> : null}
 
-      <details open className="mt-4 rounded-lg border border-cyan-300/15 bg-[#07111f]/70 p-3">
-        <summary className="cursor-pointer text-sm font-semibold text-cyan-100">Management tools</summary>
-        <div className="mt-3 grid gap-3 xl:grid-cols-3">
+      <section className="mt-4 rounded-lg border border-cyan-300/15 bg-[#07111f]/70 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-cyan-100">Management tools</p>
+            <p className="mt-1 text-xs text-neutral-500">Client actions, channel view, and privilege keys.</p>
+          </div>
+        </div>
+
+        <div className="mt-3 grid gap-3 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
           <section className="rounded-lg border border-white/10 bg-neutral-950/35 p-3">
             <p className="text-sm font-semibold text-white">Online clients</p>
-            <div className="mt-3 max-h-72 space-y-2 overflow-auto">
+            <div className="mt-3 max-h-80 space-y-2 overflow-auto">
               {live?.clients.map((client) => (
-                <div key={client.id} className="rounded-md border border-white/10 bg-neutral-900 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="min-w-0 truncate text-sm font-medium text-neutral-100">{client.nickname}</p>
-                    <span className="shrink-0 text-xs text-neutral-500">DB {client.databaseId}</span>
+                <div
+                  key={client.id}
+                  className="grid gap-3 rounded-md border border-white/10 bg-neutral-900 p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-neutral-100">{client.nickname}</p>
+                    <p className="mt-1 text-xs text-neutral-500">Database ID {client.databaseId}</p>
                   </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    <button type="button" onClick={() => runClientAction("poke", client.id)} className="h-9 rounded-md border border-cyan-300/25 px-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-300/10">
+                  <div className="grid gap-2 sm:grid-cols-3 md:w-[280px]">
+                    <button
+                      type="button"
+                      onClick={() => runClientAction("poke", client.id)}
+                      className="h-9 rounded-md border border-cyan-300/25 px-3 text-xs font-semibold text-cyan-100 hover:bg-cyan-300/10"
+                    >
                       Poke
                     </button>
-                    <button type="button" onClick={() => runClientAction("kick", client.id)} className="h-9 rounded-md border border-amber-400/30 px-2 text-xs font-semibold text-amber-100 hover:bg-amber-400/10">
+                    <button
+                      type="button"
+                      onClick={() => runClientAction("kick", client.id)}
+                      className="h-9 rounded-md border border-amber-400/30 px-3 text-xs font-semibold text-amber-100 hover:bg-amber-400/10"
+                    >
                       Kick
                     </button>
-                    <button type="button" onClick={() => runClientAction("ban", client.id)} className="h-9 rounded-md border border-red-400/30 px-2 text-xs font-semibold text-red-100 hover:bg-red-400/10">
+                    <button
+                      type="button"
+                      onClick={() => runClientAction("ban", client.id)}
+                      className="h-9 rounded-md border border-red-400/30 px-3 text-xs font-semibold text-red-100 hover:bg-red-400/10"
+                    >
                       Ban 1h
                     </button>
                   </div>
@@ -1980,57 +2001,67 @@ function TeamSpeakCard({
             </div>
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-neutral-950/35 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-white">Channel viewer</p>
-              <button type="button" onClick={loadChannels} className="h-8 rounded-md border border-white/10 px-3 text-xs font-semibold text-neutral-200 hover:bg-white/5">
-                Load
-              </button>
-            </div>
-            <div className="mt-3 max-h-72 space-y-2 overflow-auto">
-              {channels.map((channel) => (
-                <div key={channel.id} className="rounded-md border border-white/10 bg-neutral-900 px-3 py-2 text-sm">
-                  <p className="font-medium text-neutral-100">{channel.name}</p>
-                  {channel.clients.length ? (
-                    <p className="mt-1 text-xs text-neutral-500">
-                      {channel.clients.map((client) => client.nickname).join(", ")}
-                    </p>
-                  ) : null}
-                </div>
-              ))}
-              {channels.length === 0 ? <p className="text-sm text-neutral-500">No channel data loaded.</p> : null}
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-white/10 bg-neutral-950/35 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-white">Privilege keys</p>
-              <button type="button" onClick={loadGroups} className="h-8 rounded-md border border-white/10 px-3 text-xs font-semibold text-neutral-200 hover:bg-white/5">
-                Load groups
-              </button>
-            </div>
-            <form onSubmit={createPrivilegeKey} className="mt-3 grid gap-2">
-              <select name="groupId" required className="h-10 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none">
-                <option value="">Server group</option>
-                {groups.map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
-                  </option>
+          <div className="grid gap-3">
+            <section className="rounded-lg border border-white/10 bg-neutral-950/35 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-white">Channel viewer</p>
+                <button
+                  type="button"
+                  onClick={loadChannels}
+                  className="h-9 rounded-md border border-white/10 px-3 text-xs font-semibold text-neutral-200 hover:bg-white/5"
+                >
+                  Load channels
+                </button>
+              </div>
+              <div className="mt-3 max-h-56 space-y-2 overflow-auto">
+                {channels.map((channel) => (
+                  <div key={channel.id} className="rounded-md border border-white/10 bg-neutral-900 px-3 py-2 text-sm">
+                    <p className="truncate font-medium text-neutral-100">{channel.name}</p>
+                    {channel.clients.length ? (
+                      <p className="mt-1 truncate text-xs text-neutral-500">
+                        {channel.clients.map((client) => client.nickname).join(", ")}
+                      </p>
+                    ) : null}
+                  </div>
                 ))}
-              </select>
-              <Input name="description" placeholder="Description" defaultValue="Created from Intuitive Gamepanel" required={false} />
-              <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
-                Create key
-              </button>
-            </form>
-            {privilegeKey ? (
-              <p className="mt-3 break-all rounded-md border border-emerald-300/20 bg-emerald-300/10 p-2 font-mono text-xs text-emerald-100">
-                {privilegeKey}
-              </p>
-            ) : null}
-          </section>
+                {channels.length === 0 ? <p className="text-sm text-neutral-500">No channel data loaded.</p> : null}
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-white/10 bg-neutral-950/35 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-white">Privilege keys</p>
+                <button
+                  type="button"
+                  onClick={loadGroups}
+                  className="h-9 rounded-md border border-white/10 px-3 text-xs font-semibold text-neutral-200 hover:bg-white/5"
+                >
+                  Load groups
+                </button>
+              </div>
+              <form onSubmit={createPrivilegeKey} className="mt-3 grid gap-2">
+                <select name="groupId" required className="h-10 min-w-0 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none">
+                  <option value="">Server group</option>
+                  {groups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+                <Input name="description" placeholder="Description" defaultValue="Created from Intuitive Gamepanel" required={false} />
+                <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+                  Create key
+                </button>
+              </form>
+              {privilegeKey ? (
+                <p className="mt-3 break-all rounded-md border border-emerald-300/20 bg-emerald-300/10 p-2 font-mono text-xs text-emerald-100">
+                  {privilegeKey}
+                </p>
+              ) : null}
+            </section>
+          </div>
         </div>
-      </details>
+      </section>
 
       <form onSubmit={saveSettings} className="mt-4 grid gap-3">
         <Input name="virtualserverName" placeholder="Server name" defaultValue={live?.info.virtualserverName ?? server.name} />
