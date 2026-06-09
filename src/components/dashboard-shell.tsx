@@ -54,6 +54,7 @@ type UserDto = {
   role: Role;
   sftpUsername: string | null;
   serverIds: string[];
+  teamspeakIds: string[];
 };
 
 type NodeDto = {
@@ -90,6 +91,34 @@ type ServerPlayersDto = {
   retrievedAt: number | null;
 };
 
+type TeamSpeakServerDto = {
+  id: string;
+  name: string;
+  description: string;
+  host: string;
+  queryPort: number;
+  voicePort: number;
+  hasApiKey: boolean;
+  assignedUserIds: string[];
+};
+
+type TeamSpeakLiveDto = {
+  info: {
+    virtualserverName: string;
+    welcomeMessage: string;
+    clientCount: number;
+    maxClients: number;
+    uptime: number;
+    status: string;
+  };
+  clients: {
+    id: string;
+    databaseId: string;
+    nickname: string;
+    type: string;
+  }[];
+};
+
 type PlayersPanelKind = "game" | "voice";
 
 const statusStyle: Record<ServerStatus, string> = {
@@ -113,8 +142,9 @@ const SERVER_GAME_LABELS: Record<string, string> = Object.fromEntries(
 );
 
 export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
-  const [view, setView] = useState<"servers" | "users" | "nodes">("servers");
+  const [view, setView] = useState<"servers" | "teamspeak" | "users" | "nodes">("servers");
   const [servers, setServers] = useState<GameServerDto[]>([]);
+  const [teamspeakServers, setTeamspeakServers] = useState<TeamSpeakServerDto[]>([]);
   const [users, setUsers] = useState<UserDto[]>([]);
   const [nodes, setNodes] = useState<NodeDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,6 +167,12 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
     if (serverResponse.ok) {
       const data = await serverResponse.json();
       setServers(data.servers);
+    }
+
+    const teamspeakResponse = await fetch("/api/teamspeak");
+    if (teamspeakResponse.ok) {
+      const data = await teamspeakResponse.json();
+      setTeamspeakServers(data.servers);
     }
 
     if (isAdmin) {
@@ -280,6 +316,9 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
           <NavButton active={view === "servers"} onClick={() => setView("servers")} icon={Server} collapsed={sidebarCollapsed}>
             Servers
           </NavButton>
+          <NavButton active={view === "teamspeak"} onClick={() => setView("teamspeak")} icon={Activity} collapsed={sidebarCollapsed}>
+            TeamSpeak
+          </NavButton>
           {isAdmin ? (
             <NavButton active={view === "users"} onClick={() => setView("users")} icon={Users} collapsed={sidebarCollapsed}>
               Users
@@ -310,7 +349,7 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
             <div>
               <p className="text-sm text-cyan-200">Signed in as {currentUser.name}</p>
               <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                {view === "users" ? "User Access" : view === "nodes" ? "Server Nodes" : "Server Control"}
+                {view === "users" ? "User Access" : view === "nodes" ? "Server Nodes" : view === "teamspeak" ? "TeamSpeak" : "Server Control"}
               </h1>
             </div>
             <div className="hidden items-center gap-3 sm:flex">
@@ -337,10 +376,18 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-6 text-neutral-300">
               Loading panel...
             </div>
+          ) : view === "teamspeak" ? (
+            <TeamSpeakPanel
+              isAdmin={isAdmin}
+              servers={teamspeakServers}
+              users={users}
+              reload={loadData}
+              setMessage={setMessage}
+            />
           ) : view === "nodes" && isAdmin ? (
             <NodesPanel nodes={nodes} reload={loadData} setMessage={setMessage} />
           ) : view === "users" && isAdmin ? (
-            <UsersPanel users={users} servers={servers} reload={loadData} setMessage={setMessage} />
+            <UsersPanel users={users} servers={servers} teamspeakServers={teamspeakServers} reload={loadData} setMessage={setMessage} />
           ) : (
             <ServersPanel
               isAdmin={isAdmin}
@@ -355,9 +402,12 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
         </section>
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-3 border-t border-white/10 bg-neutral-950/95 p-2 backdrop-blur lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-4 border-t border-white/10 bg-neutral-950/95 p-2 backdrop-blur lg:hidden">
         <MobileButton active={view === "servers"} onClick={() => setView("servers")} icon={LayoutDashboard}>
           Servers
+        </MobileButton>
+        <MobileButton active={view === "teamspeak"} onClick={() => setView("teamspeak")} icon={Activity}>
+          TS3
         </MobileButton>
         {isAdmin ? (
           <MobileButton active={view === "users"} onClick={() => setView("users")} icon={Users}>
@@ -1545,6 +1595,318 @@ function ServerForm({
   );
 }
 
+function TeamSpeakPanel({
+  isAdmin,
+  servers,
+  users,
+  reload,
+  setMessage,
+}: {
+  isAdmin: boolean;
+  servers: TeamSpeakServerDto[];
+  users: UserDto[];
+  reload: () => Promise<void>;
+  setMessage: (message: string) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      {isAdmin ? <TeamSpeakForm users={users} reload={reload} setMessage={setMessage} /> : null}
+      <div className="grid gap-4 xl:grid-cols-2">
+        {servers.map((server) => (
+          <TeamSpeakCard
+            key={server.id}
+            isAdmin={isAdmin}
+            server={server}
+            users={users}
+            reload={reload}
+            setMessage={setMessage}
+          />
+        ))}
+      </div>
+      {servers.length === 0 ? (
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-6 text-neutral-300">
+          No TeamSpeak servers are assigned to this account.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TeamSpeakForm({
+  users,
+  reload,
+  setMessage,
+}: {
+  users: UserDto[];
+  reload: () => Promise<void>;
+  setMessage: (message: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const response = await fetch("/api/teamspeak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: formData.get("name"),
+        description: formData.get("description"),
+        host: formData.get("host"),
+        queryPort: formData.get("queryPort"),
+        voicePort: formData.get("voicePort"),
+        apiKey: formData.get("apiKey"),
+        assignedUserIds: formData.getAll("assignedUserIds"),
+      }),
+    });
+
+    if (response.ok) {
+      form.reset();
+      setOpen(false);
+      setMessage("TeamSpeak server added.");
+      await reload();
+    } else {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setMessage(data?.error ?? "Could not add TeamSpeak server.");
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-white">TeamSpeak servers</p>
+          <p className="text-sm text-neutral-400">Connect TeamSpeak ServerQuery API keys and assign access.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200"
+        >
+          <Plus className="h-4 w-4" />
+          Add TeamSpeak
+        </button>
+      </div>
+
+      {open ? (
+        <form onSubmit={submit} className="mt-4 space-y-4 border-t border-white/10 pt-4">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_160px_160px]">
+            <Input name="name" placeholder="Display name" />
+            <Input name="host" placeholder="127.0.0.1 or public IP" />
+            <Input name="queryPort" type="number" defaultValue={10011} placeholder="10011" />
+            <Input name="voicePort" type="number" defaultValue={9987} placeholder="9987" />
+          </div>
+          <Input name="description" placeholder="Description" required={false} />
+          <Input name="apiKey" placeholder="ServerQuery API key" />
+          <div className="rounded-lg border border-white/10 bg-[#07111f]/70 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Assign users</p>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {users.map((user) => (
+                <label key={user.id} className="flex min-h-10 items-center gap-2 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-neutral-200">
+                  <input type="checkbox" name="assignedUserIds" value={user.id} className="h-4 w-4 accent-cyan-300" />
+                  <span className="truncate">{user.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+              <Plus className="h-4 w-4" />
+              Create
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="h-10 rounded-md border border-white/10 px-4 text-sm font-semibold text-neutral-300 transition hover:bg-white/5"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : null}
+    </section>
+  );
+}
+
+function TeamSpeakCard({
+  isAdmin,
+  server,
+  users,
+  reload,
+  setMessage,
+}: {
+  isAdmin: boolean;
+  server: TeamSpeakServerDto;
+  users: UserDto[];
+  reload: () => Promise<void>;
+  setMessage: (message: string) => void;
+}) {
+  const [live, setLive] = useState<TeamSpeakLiveDto | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function loadLive() {
+    setLoading(true);
+    setError("");
+    const response = await fetch(`/api/teamspeak/${server.id}`);
+    setLoading(false);
+
+    if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setError(data?.error ?? "Could not load TeamSpeak data.");
+      return;
+    }
+
+    setLive(await response.json());
+  }
+
+  async function saveSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const response = await fetch(`/api/teamspeak/${server.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        virtualserverName: formData.get("virtualserverName"),
+        welcomeMessage: formData.get("welcomeMessage"),
+        maxClients: formData.get("maxClients"),
+      }),
+    });
+
+    if (response.ok) {
+      setMessage("TeamSpeak settings saved.");
+      await loadLive();
+    } else {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setMessage(data?.error ?? "Could not save TeamSpeak settings.");
+    }
+  }
+
+  async function saveAdmin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const response = await fetch(`/api/teamspeak/${server.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: formData.get("name"),
+        description: formData.get("description"),
+        host: formData.get("host"),
+        queryPort: formData.get("queryPort"),
+        voicePort: formData.get("voicePort"),
+        apiKey: formData.get("apiKey") || undefined,
+        assignedUserIds: formData.getAll("assignedUserIds"),
+      }),
+    });
+
+    setMessage(response.ok ? "TeamSpeak connection updated." : "Could not update TeamSpeak connection.");
+    await reload();
+  }
+
+  async function removeServer() {
+    const response = await fetch(`/api/teamspeak/${server.id}`, { method: "DELETE" });
+    setMessage(response.ok ? "TeamSpeak server deleted." : "Could not delete TeamSpeak server.");
+    await reload();
+  }
+
+  return (
+    <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-lg font-semibold text-white">{server.name}</p>
+          <p className="mt-1 text-sm text-neutral-400">{server.description || `${server.host}:${server.voicePort}`}</p>
+        </div>
+        <button
+          type="button"
+          onClick={loadLive}
+          disabled={loading}
+          className="flex h-10 items-center gap-2 rounded-md border border-cyan-300/25 px-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10 disabled:opacity-60"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Refresh
+        </button>
+      </div>
+
+      {live ? (
+        <div className="mt-4 rounded-lg border border-white/10 bg-[#07111f]/70 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-white">{live.info.virtualserverName}</p>
+              <p className="mt-1 text-xs text-neutral-500">{live.info.status} · uptime {Math.floor(live.info.uptime / 60)} min</p>
+            </div>
+            <span className="rounded-md border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-sm font-semibold text-emerald-100">
+              {live.info.clientCount}/{live.info.maxClients}
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2">
+            {live.clients.map((client) => (
+              <div key={client.id} className="flex items-center justify-between rounded-md border border-white/10 bg-neutral-900 px-3 py-2 text-sm">
+                <span className="truncate text-neutral-100">{client.nickname}</span>
+                <span className="text-xs text-neutral-500">DB {client.databaseId}</span>
+              </div>
+            ))}
+            {live.clients.length === 0 ? <p className="text-sm text-neutral-500">No clients online.</p> : null}
+          </div>
+        </div>
+      ) : null}
+      {error ? <p className="mt-3 text-sm text-red-200">{error}</p> : null}
+
+      <form onSubmit={saveSettings} className="mt-4 grid gap-3">
+        <Input name="virtualserverName" placeholder="Server name" defaultValue={live?.info.virtualserverName ?? server.name} />
+        <Input name="welcomeMessage" placeholder="Welcome message" defaultValue={live?.info.welcomeMessage ?? ""} required={false} />
+        <Input name="maxClients" type="number" placeholder="Max clients" defaultValue={live?.info.maxClients || 32} />
+        <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+          Save TeamSpeak settings
+        </button>
+      </form>
+
+      {isAdmin ? (
+        <details className="mt-4 rounded-lg border border-white/10 bg-[#07111f]/70 p-3">
+          <summary className="cursor-pointer text-sm font-semibold text-neutral-200">Admin connection settings</summary>
+          <form onSubmit={saveAdmin} className="mt-3 grid gap-3">
+            <div className="grid gap-3 md:grid-cols-2">
+              <Input name="name" defaultValue={server.name} placeholder="Display name" />
+              <Input name="description" defaultValue={server.description} placeholder="Description" required={false} />
+              <Input name="host" defaultValue={server.host} placeholder="Host" />
+              <Input name="apiKey" placeholder={server.hasApiKey ? "New API key optional" : "API key"} required={false} />
+              <Input name="queryPort" type="number" defaultValue={server.queryPort} placeholder="Query port" />
+              <Input name="voicePort" type="number" defaultValue={server.voicePort} placeholder="Voice port" />
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {users.map((user) => (
+                <label key={user.id} className="flex min-h-10 items-center gap-2 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-neutral-200">
+                  <input
+                    type="checkbox"
+                    name="assignedUserIds"
+                    value={user.id}
+                    defaultChecked={server.assignedUserIds.includes(user.id)}
+                    className="h-4 w-4 accent-cyan-300"
+                  />
+                  <span className="truncate">{user.name}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+                Save connection
+              </button>
+              <button
+                type="button"
+                onClick={removeServer}
+                className="flex h-10 items-center gap-2 rounded-md border border-red-400/30 px-4 text-sm font-semibold text-red-200 transition hover:bg-red-400/10"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </button>
+            </div>
+          </form>
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
 function NodesPanel({
   nodes,
   reload,
@@ -1716,20 +2078,22 @@ function NodeEditor({
 function UsersPanel({
   users,
   servers,
+  teamspeakServers,
   reload,
   setMessage,
 }: {
   users: UserDto[];
   servers: GameServerDto[];
+  teamspeakServers: TeamSpeakServerDto[];
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
 }) {
   return (
     <div className="space-y-6">
-      <UserForm servers={servers} reload={reload} setMessage={setMessage} />
+      <UserForm servers={servers} teamspeakServers={teamspeakServers} reload={reload} setMessage={setMessage} />
       <div className="grid gap-4 xl:grid-cols-2">
         {users.map((user) => (
-          <UserEditor key={user.id} user={user} servers={servers} reload={reload} setMessage={setMessage} />
+          <UserEditor key={user.id} user={user} servers={servers} teamspeakServers={teamspeakServers} reload={reload} setMessage={setMessage} />
         ))}
       </div>
     </div>
@@ -1738,10 +2102,12 @@ function UsersPanel({
 
 function UserForm({
   servers,
+  teamspeakServers,
   reload,
   setMessage,
 }: {
   servers: GameServerDto[];
+  teamspeakServers: TeamSpeakServerDto[];
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
 }) {
@@ -1825,6 +2191,7 @@ function UserForm({
           </section>
 
           <ServerCheckboxes servers={servers} selected={[]} />
+          <TeamSpeakCheckboxes servers={teamspeakServers} selected={[]} />
 
           <div className="flex flex-wrap gap-2">
             <button className="flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
@@ -1848,11 +2215,13 @@ function UserForm({
 function UserEditor({
   user,
   servers,
+  teamspeakServers,
   reload,
   setMessage,
 }: {
   user: UserDto;
   servers: GameServerDto[];
+  teamspeakServers: TeamSpeakServerDto[];
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
 }) {
@@ -1887,6 +2256,7 @@ function UserEditor({
         </select>
       </div>
       <ServerCheckboxes servers={servers} selected={user.serverIds} />
+      <TeamSpeakCheckboxes servers={teamspeakServers} selected={user.teamspeakIds} />
       <div className="mt-4 flex flex-wrap gap-2">
         <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
           Save
@@ -1947,6 +2317,38 @@ function ServerCheckboxes({ servers, selected }: { servers: GameServerDto[]; sel
   );
 }
 
+function TeamSpeakCheckboxes({ servers, selected }: { servers: TeamSpeakServerDto[]; selected: string[] }) {
+  if (servers.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-4 rounded-lg border border-white/10 bg-[#07111f]/70">
+      <div className="border-b border-white/10 px-3 py-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">TeamSpeak access</p>
+        <p className="mt-1 text-sm text-neutral-400">Assign the TeamSpeak servers this user may manage.</p>
+      </div>
+      <div className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3">
+        {servers.map((server) => (
+          <label
+            key={server.id}
+            className="flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-neutral-200"
+          >
+            <input
+              type="checkbox"
+              name="teamspeakIds"
+              value={server.id}
+              defaultChecked={selected.includes(server.id)}
+              className="h-4 w-4 accent-cyan-300"
+            />
+            <span className="truncate">{server.name}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
@@ -1966,6 +2368,7 @@ function userPayload(form: HTMLFormElement) {
     role: formData.get("role"),
     sftpUsername: formData.get("sftpUsername") || undefined,
     serverIds: formData.getAll("serverIds"),
+    teamspeakIds: formData.getAll("teamspeakIds"),
     createSftpUser: formData.get("createSftpUser") === "on",
     sftpPassword: formData.get("sftpPassword") || undefined,
   };

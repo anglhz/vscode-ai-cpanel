@@ -13,6 +13,7 @@ const userSchema = z.object({
   password: z.string().min(8),
   role: z.enum(roles),
   serverIds: z.array(z.string()).default([]),
+  teamspeakIds: z.array(z.string()).default([]),
   createSftpUser: z.boolean().default(false),
   sftpUsername: z.string().regex(/^[a-zA-Z0-9_-]{2,32}$/).optional().or(z.literal("")),
   sftpPassword: z.string().min(8).optional().or(z.literal("")),
@@ -28,6 +29,7 @@ export async function GET() {
       role: true,
       sftpUsername: true,
       serverAccess: { select: { serverId: true } },
+      teamspeakAccess: { select: { teamspeakId: true } },
     },
     orderBy: { name: "asc" },
   });
@@ -36,7 +38,9 @@ export async function GET() {
     users: users.map((user) => ({
       ...user,
       serverIds: user.serverAccess.map((access) => access.serverId),
+      teamspeakIds: user.teamspeakAccess.map((access) => access.teamspeakId),
       serverAccess: undefined,
+      teamspeakAccess: undefined,
     })),
   });
 }
@@ -85,6 +89,9 @@ export async function POST(request: Request) {
       passwordHash,
       serverAccess: {
         create: parsed.data.serverIds.map((serverId) => ({ serverId })),
+      },
+      teamspeakAccess: {
+        create: parsed.data.teamspeakIds.map((teamspeakId) => ({ teamspeakId })),
       },
     },
     select: { id: true, name: true, email: true, role: true },

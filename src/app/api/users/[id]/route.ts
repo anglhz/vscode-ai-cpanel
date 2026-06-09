@@ -13,6 +13,7 @@ const updateUserSchema = z.object({
   role: z.enum(roles),
   sftpUsername: z.string().regex(/^[a-zA-Z0-9_-]{2,32}$/).optional().or(z.literal("")),
   serverIds: z.array(z.string()).default([]),
+  teamspeakIds: z.array(z.string()).default([]),
 });
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -24,11 +25,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "Invalid user payload." }, { status: 400 });
   }
 
-  const { serverIds, password, ...data } = parsed.data;
+  const { serverIds, teamspeakIds, password, ...data } = parsed.data;
   const passwordHash = password ? await bcrypt.hash(password, 12) : undefined;
 
   await prisma.$transaction([
     prisma.userServerAccess.deleteMany({ where: { userId: id } }),
+    prisma.userTeamSpeakAccess.deleteMany({ where: { userId: id } }),
     prisma.user.update({
       where: { id },
       data: {
@@ -37,6 +39,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         sftpUsername: data.sftpUsername || null,
         ...(passwordHash ? { passwordHash } : {}),
         serverAccess: { create: serverIds.map((serverId) => ({ serverId })) },
+        teamspeakAccess: { create: teamspeakIds.map((teamspeakId) => ({ teamspeakId })) },
       },
     }),
   ]);
