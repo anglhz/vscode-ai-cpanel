@@ -120,10 +120,14 @@ async function pathExists(path: string) {
   }
 }
 
-async function sudoSymlinkContents(sourceDirectory: string, targetDirectory: string) {
+async function sudoSymlinkContents(sourceDirectory: string, targetDirectory: string, excludeNames: string[] = []) {
   const entries = await readdir(sourceDirectory);
 
   for (const entry of entries) {
+    if (excludeNames.includes(entry)) {
+      continue;
+    }
+
     const sourcePath = `${sourceDirectory}/${entry}`;
     const targetPath = `${targetDirectory}/${entry}`;
 
@@ -136,6 +140,50 @@ async function sudoSymlinkContents(sourceDirectory: string, targetDirectory: str
       windowsHide: true,
     });
   }
+}
+
+export async function updateCodbaseLinkedFiles({
+  masterExecStart,
+  targetExecStarts,
+}: {
+  masterExecStart: string;
+  targetExecStarts: string[];
+}) {
+  const masterDirectory = getServerDirectoryFromExecStart(masterExecStart);
+  const masterParts = masterDirectory.slice(getGameServersRoot().length + 1).split("/");
+
+  if (masterParts[1] !== "cod1" || masterParts[2] !== "28901") {
+    throw new Error("CoDBase update source must be cod1 port 28901.");
+  }
+
+  if (process.env.SYSTEMD_SERVER_PROVISIONING_ENABLED !== "true") {
+    return { skipped: true, updated: 0 };
+  }
+
+  let updated = 0;
+
+  for (const targetExecStart of targetExecStarts) {
+    const targetDirectory = getServerDirectoryFromExecStart(targetExecStart);
+    const targetParts = targetDirectory.slice(getGameServersRoot().length + 1).split("/");
+    const port = Number(targetParts[2]);
+
+    if (targetParts[0] !== masterParts[0] || targetParts[1] !== "cod1" || ![28902, 28903, 28904, 28905, 28906, 28907, 28908, 28909, 28913].includes(port)) {
+      continue;
+    }
+
+    for (const directory of ["main", "pb", "__rPAMv115b5"]) {
+      await execFileAsync("sudo", [SUDO_MKDIR, "-p", `${targetDirectory}/${directory}`], {
+        timeout: 10_000,
+        windowsHide: true,
+      });
+    }
+    await sudoSymlinkContents(`${masterDirectory}/main`, `${targetDirectory}/main`, ["server_config.cfg"]);
+    await sudoSymlinkContents(`${masterDirectory}/pb`, `${targetDirectory}/pb`);
+    await sudoSymlinkContents(`${masterDirectory}/__rPAMv115b5`, `${targetDirectory}/__rPAMv115b5`, ["config_mp_server.cfg"]);
+    updated += 1;
+  }
+
+  return { skipped: false, updated };
 }
 
 async function sudoCopyFile(sourcePath: string, targetPath: string) {

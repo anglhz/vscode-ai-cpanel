@@ -639,6 +639,7 @@ function ServersPanel({
   const [orderedServers, setOrderedServers] = useState(servers);
   const [draggedServerId, setDraggedServerId] = useState("");
   const [draggedGameKey, setDraggedGameKey] = useState("");
+  const [updatingCodbaseLinks, setUpdatingCodbaseLinks] = useState(false);
   const [collapsedGames, setCollapsedGames] = useState<Record<string, boolean>>({});
   const groupedServers = useMemo(() => groupServersByGame(orderedServers), [orderedServers]);
 
@@ -703,9 +704,41 @@ function ServersPanel({
     void saveOrder(nextServers);
   }
 
+  async function updateCodbaseLinks() {
+    setUpdatingCodbaseLinks(true);
+    const response = await fetch("/api/servers/codbase/update-links", { method: "POST" });
+    setUpdatingCodbaseLinks(false);
+    const data = (await response.json().catch(() => null)) as { error?: string; updated?: number } | null;
+
+    if (response.ok) {
+      setMessage(`CoDBase links updated for ${data?.updated ?? 0} servers.`);
+    } else {
+      setMessage(data?.error ?? "Could not update CoDBase links.");
+    }
+  }
+
   return (
     <div className="space-y-6">
       {isAdmin ? <ServerForm users={users} nodes={nodes} reload={reload} setMessage={setMessage} /> : null}
+      <section className="rounded-lg border border-cyan-300/15 bg-[#07111f]/70 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-white">CoDBase linked files</p>
+            <p className="mt-1 text-sm text-neutral-400">
+              Sync new files from CoDBase #1 into match servers without replacing per-server configs.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={updateCodbaseLinks}
+            disabled={updatingCodbaseLinks}
+            className="flex h-11 items-center justify-center gap-2 rounded-md border border-cyan-300/25 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10 disabled:cursor-wait disabled:opacity-60"
+          >
+            <RefreshCw className={`h-4 w-4 ${updatingCodbaseLinks ? "animate-spin" : ""}`} />
+            Update CoDBase links
+          </button>
+        </div>
+      </section>
       <div className="overflow-hidden rounded-lg border border-white/10 bg-[#09111d]/70 shadow-2xl shadow-black/25 backdrop-blur-xl">
         <div className="hidden grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.7fr)_minmax(230px,0.9fr)] border-b border-white/10 bg-white/[0.07] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-300 lg:grid">
           <span>Server name</span>
