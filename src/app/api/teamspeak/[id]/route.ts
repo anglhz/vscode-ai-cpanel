@@ -21,6 +21,7 @@ const settingsSchema = z.object({
   virtualserverName: z.string().min(1).max(80).refine((value) => !/[\r\n]/.test(value)),
   welcomeMessage: z.string().max(300).refine((value) => !/[\r\n]/.test(value)),
   maxClients: z.coerce.number().int().min(1).max(1024),
+  password: z.string().max(80).optional().refine((value) => !value || !/[\r\n]/.test(value)),
 });
 
 function serializeTeamSpeak(server: {

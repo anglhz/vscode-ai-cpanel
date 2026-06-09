@@ -14,10 +14,34 @@ export type TeamSpeakClient = {
   databaseId: string;
   nickname: string;
   type: string;
+  channelId: string;
+};
+
+export type TeamSpeakChannel = {
+  id: string;
+  parentId: string;
+  order: string;
+  name: string;
+  clients: TeamSpeakClient[];
+};
+
+export type TeamSpeakServerGroup = {
+  id: string;
+  name: string;
+  type: string;
 };
 
 type CommandResult = {
   lines: string[];
+};
+
+type TeamSpeakConfig = {
+  host: string;
+  queryPort: number;
+  voicePort: number;
+  apiKey: string;
+  queryUsername?: string;
+  queryPassword?: string;
 };
 
 function escapeServerQueryValue(value: string) {
@@ -149,26 +173,21 @@ async function runServerQuery({
   });
 }
 
-export async function getTeamSpeakLiveInfo(config: {
-  host: string;
-  queryPort: number;
-  voicePort: number;
-  apiKey: string;
-  queryUsername?: string;
-  queryPassword?: string;
-}) {
-  const commands = ["serverinfo", "clientlist"];
-  let result: CommandResult;
-
+async function runAuthenticatedQuery(config: TeamSpeakConfig, commands: string[]) {
   try {
-    result = await runServerQuery({ ...config, commands });
+    return await runServerQuery({ ...config, commands });
   } catch (error) {
     if (!config.apiKey || !config.queryUsername || !config.queryPassword || !String(error).includes("command not found")) {
       throw error;
     }
 
-    result = await runServerQuery({ ...config, apiKey: "", commands });
+    return runServerQuery({ ...config, apiKey: "", commands });
   }
+}
+
+export async function getTeamSpeakLiveInfo(config: TeamSpeakConfig) {
+  const commands = ["serverinfo", "clientlist"];
+  const result = await runAuthenticatedQuery(config, commands);
   const serverInfo = parseFields(result.lines.find((line) => line.includes("virtualserver_name=")) ?? "");
   const clients = parseTeamSpeakClients(result.lines.find((line) => line.includes("clid=")) ?? "");
   const queryClients = clients.filter((client) => client.type === "1").length;
@@ -188,33 +207,81 @@ export async function getTeamSpeakLiveInfo(config: {
 }
 
 export async function updateTeamSpeakVirtualServer(
-  config: {
-    host: string;
-    queryPort: number;
-    voicePort: number;
-    apiKey: string;
-    queryUsername?: string;
-    queryPassword?: string;
-  },
+  config: TeamSpeakConfig,
   settings: {
     virtualserverName: string;
     welcomeMessage: string;
     maxClients: number;
+    password?: string;
   },
 ) {
   const commands = [
-    `serveredit virtualserver_name=${escapeServerQueryValue(settings.virtualserverName)} virtualserver_welcomemessage=${escapeServerQueryValue(settings.welcomeMessage)} virtualserver_maxclients=${settings.maxClients}`,
+    `serveredit virtualserver_name=${escapeServerQueryValue(settings.virtualserverName)} virtualserver_welcomemessage=${escapeServerQueryValue(settings.welcomeMessage)} virtualserver_maxclients=${settings.maxClients}${settings.password !== undefined ? ` virtualserver_password=${escapeServerQueryValue(settings.password)}` : ""}`,
   ];
 
-  try {
-    await runServerQuery({ ...config, commands });
-  } catch (error) {
-    if (!config.apiKey || !config.queryUsername || !config.queryPassword || !String(error).includes("command not found")) {
-      throw error;
-    }
+  await runAuthenticatedQuery(config, commands);
+}
 
-    await runServerQuery({ ...config, apiKey: "", commands });
-  }
+export async function getTeamSpeakChannels(config: TeamSpeakConfig) {
+  const result = await runAuthenticatedQuery(config, ["channellist", "clientlist"]);
+  const clients = parseTeamSpeakClients(result.lines.find((line) => line.includes("clid=")) ?? "");
+  const channels = parseList(result.lines.find((line) => line.includes("cid=")) ?? "").map((fields) => ({
+    id: fields.cid ?? "",
+    parentId: fields.pid ?? "0",
+    order: fields.channel_order ?? "0",
+    name: fields.channel_name ?? "",
+    clients: clients.filter((client) => client.channelId === fields.cid),
+  }));
+
+  return { channels };
+}
+
+export async function getTeamSpeakServerGroups(config: TeamSpeakConfig) {
+  const result = await runAuthenticatedQuery(config, ["servergrouplist"]);
+  const groups = parseList(result.lines.find((line) => line.includes("sgid=")) ?? "")
+    .filter((fields) => fields.type !== "2")
+    .map((fields) => ({
+      id: fields.sgid ?? "",
+      name: fields.name ?? "",
+      type: fields.type ?? "",
+    }));
+
+  return { groups };
+}
+
+export async function createTeamSpeakPrivilegeKey(
+  config: TeamSpeakConfig,
+  settings: {
+    groupId: string;
+    description: string;
+  },
+) {
+  const result = await runAuthenticatedQuery(config, [
+    `privilegekeyadd tokentype=0 tokenid1=${Number(settings.groupId)} tokenid2=0 tokendescription=${escapeServerQueryValue(settings.description)}`,
+  ]);
+  const fields = parseFields(result.lines.find((line) => line.includes("token=")) ?? "");
+
+  return { token: fields.token ?? "" };
+}
+
+export async function runTeamSpeakClientAction(
+  config: TeamSpeakConfig,
+  action: "poke" | "kick" | "ban",
+  settings: {
+    clientId: string;
+    message: string;
+  },
+) {
+  const clientId = Number(settings.clientId);
+  const message = escapeServerQueryValue(settings.message || "Managed from Intuitive Gamepanel");
+  const command =
+    action === "poke"
+      ? `clientpoke clid=${clientId} msg=${message}`
+      : action === "kick"
+        ? `clientkick clid=${clientId} reasonid=5 reasonmsg=${message}`
+        : `banclient clid=${clientId} time=3600 banreason=${message}`;
+
+  await runAuthenticatedQuery(config, [command]);
 }
 
 function parseTeamSpeakClients(line: string) {
@@ -230,6 +297,15 @@ function parseTeamSpeakClients(line: string) {
       databaseId: fields.client_database_id ?? "",
       nickname: fields.client_nickname ?? "",
       type: fields.client_type ?? "0",
+      channelId: fields.cid ?? "",
     };
   });
+}
+
+function parseList(line: string) {
+  if (!line) {
+    return [];
+  }
+
+  return line.split("|").map(parseFields);
 }

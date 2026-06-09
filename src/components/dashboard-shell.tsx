@@ -118,7 +118,22 @@ type TeamSpeakLiveDto = {
     databaseId: string;
     nickname: string;
     type: string;
+    channelId: string;
   }[];
+};
+
+type TeamSpeakChannelDto = {
+  id: string;
+  parentId: string;
+  order: string;
+  name: string;
+  clients: TeamSpeakLiveDto["clients"];
+};
+
+type TeamSpeakGroupDto = {
+  id: string;
+  name: string;
+  type: string;
 };
 
 type PlayersPanelKind = "game" | "voice";
@@ -1751,6 +1766,9 @@ function TeamSpeakCard({
   setMessage: (message: string) => void;
 }) {
   const [live, setLive] = useState<TeamSpeakLiveDto | null>(null);
+  const [channels, setChannels] = useState<TeamSpeakChannelDto[]>([]);
+  const [groups, setGroups] = useState<TeamSpeakGroupDto[]>([]);
+  const [privilegeKey, setPrivilegeKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -1779,6 +1797,7 @@ function TeamSpeakCard({
         virtualserverName: formData.get("virtualserverName"),
         welcomeMessage: formData.get("welcomeMessage"),
         maxClients: formData.get("maxClients"),
+        password: formData.get("password"),
       }),
     });
 
@@ -1788,6 +1807,68 @@ function TeamSpeakCard({
     } else {
       const data = (await response.json().catch(() => null)) as { error?: string } | null;
       setMessage(data?.error ?? "Could not save TeamSpeak settings.");
+    }
+  }
+
+  async function loadChannels() {
+    const response = await fetch(`/api/teamspeak/${server.id}/channels`);
+
+    if (response.ok) {
+      const data = (await response.json()) as { channels: TeamSpeakChannelDto[] };
+      setChannels(data.channels);
+    } else {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setMessage(data?.error ?? "Could not load channels.");
+    }
+  }
+
+  async function loadGroups() {
+    const response = await fetch(`/api/teamspeak/${server.id}/groups`);
+
+    if (response.ok) {
+      const data = (await response.json()) as { groups: TeamSpeakGroupDto[] };
+      setGroups(data.groups);
+    } else {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setMessage(data?.error ?? "Could not load server groups.");
+    }
+  }
+
+  async function runClientAction(action: "poke" | "kick" | "ban", clientId: string) {
+    const response = await fetch(`/api/teamspeak/${server.id}/client-action`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, clientId, message: `${action} from Intuitive Gamepanel` }),
+    });
+
+    if (response.ok) {
+      setMessage(`TeamSpeak ${action} sent.`);
+      await loadLive();
+    } else {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setMessage(data?.error ?? `Could not run ${action}.`);
+    }
+  }
+
+  async function createPrivilegeKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const response = await fetch(`/api/teamspeak/${server.id}/privilege-key`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        groupId: formData.get("groupId"),
+        description: formData.get("description"),
+      }),
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as { token: string };
+      setPrivilegeKey(data.token);
+      setMessage("Privilege key created.");
+    } else {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+      setMessage(data?.error ?? "Could not create privilege key.");
     }
   }
 
@@ -1856,9 +1937,22 @@ function TeamSpeakCard({
           </div>
           <div className="mt-3 grid gap-2">
             {live.clients.map((client) => (
-              <div key={client.id} className="flex items-center justify-between rounded-md border border-white/10 bg-neutral-900 px-3 py-2 text-sm">
-                <span className="truncate text-neutral-100">{client.nickname}</span>
-                <span className="text-xs text-neutral-500">DB {client.databaseId}</span>
+              <div key={client.id} className="grid gap-2 rounded-md border border-white/10 bg-neutral-900 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="min-w-0">
+                  <span className="truncate text-neutral-100">{client.nickname}</span>
+                  <span className="ml-2 text-xs text-neutral-500">DB {client.databaseId}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => runClientAction("poke", client.id)} className="rounded-md border border-white/10 px-2 py-1 text-xs text-neutral-200 hover:bg-white/5">
+                    Poke
+                  </button>
+                  <button type="button" onClick={() => runClientAction("kick", client.id)} className="rounded-md border border-amber-400/30 px-2 py-1 text-xs text-amber-100 hover:bg-amber-400/10">
+                    Kick
+                  </button>
+                  <button type="button" onClick={() => runClientAction("ban", client.id)} className="rounded-md border border-red-400/30 px-2 py-1 text-xs text-red-100 hover:bg-red-400/10">
+                    Ban 1h
+                  </button>
+                </div>
               </div>
             ))}
             {live.clients.length === 0 ? <p className="text-sm text-neutral-500">No clients online.</p> : null}
@@ -1871,10 +1965,63 @@ function TeamSpeakCard({
         <Input name="virtualserverName" placeholder="Server name" defaultValue={live?.info.virtualserverName ?? server.name} />
         <Input name="welcomeMessage" placeholder="Welcome message" defaultValue={live?.info.welcomeMessage ?? ""} required={false} />
         <Input name="maxClients" type="number" placeholder="Max clients" defaultValue={live?.info.maxClients || 32} />
+        <Input name="password" type="password" placeholder="Server password optional; leave empty to clear" required={false} />
         <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
           Save TeamSpeak settings
         </button>
       </form>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <section className="rounded-lg border border-white/10 bg-[#07111f]/70 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-white">Channels</p>
+            <button type="button" onClick={loadChannels} className="rounded-md border border-white/10 px-2 py-1 text-xs text-neutral-200 hover:bg-white/5">
+              Load
+            </button>
+          </div>
+          <div className="mt-3 max-h-72 space-y-2 overflow-auto">
+            {channels.map((channel) => (
+              <div key={channel.id} className="rounded-md border border-white/10 bg-neutral-900 px-3 py-2 text-sm">
+                <p className="font-medium text-neutral-100">{channel.name}</p>
+                {channel.clients.length ? (
+                  <p className="mt-1 text-xs text-neutral-500">
+                    {channel.clients.map((client) => client.nickname).join(", ")}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+            {channels.length === 0 ? <p className="text-sm text-neutral-500">No channel data loaded.</p> : null}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-white/10 bg-[#07111f]/70 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-white">Privilege keys</p>
+            <button type="button" onClick={loadGroups} className="rounded-md border border-white/10 px-2 py-1 text-xs text-neutral-200 hover:bg-white/5">
+              Load groups
+            </button>
+          </div>
+          <form onSubmit={createPrivilegeKey} className="mt-3 grid gap-2">
+            <select name="groupId" required className="h-10 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none">
+              <option value="">Server group</option>
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+            <Input name="description" placeholder="Description" defaultValue="Created from Intuitive Gamepanel" required={false} />
+            <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+              Create key
+            </button>
+          </form>
+          {privilegeKey ? (
+            <p className="mt-3 break-all rounded-md border border-emerald-300/20 bg-emerald-300/10 p-2 font-mono text-xs text-emerald-100">
+              {privilegeKey}
+            </p>
+          ) : null}
+        </section>
+      </div>
 
       {isAdmin ? (
         <details className="mt-4 rounded-lg border border-white/10 bg-[#07111f]/70 p-3">
