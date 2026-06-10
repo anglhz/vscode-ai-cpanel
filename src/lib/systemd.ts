@@ -160,7 +160,13 @@ export async function updateCodbaseLinkedFiles({
     return { skipped: true, updated: 0 };
   }
 
+  const owner = `${masterParts[0]}:${getGameServerGroup()}`;
   let updated = 0;
+
+  await execFileAsync("sudo", [SUDO_CHOWN, "-R", owner, masterDirectory], {
+    timeout: 30_000,
+    windowsHide: true,
+  });
 
   for (const targetExecStart of targetExecStarts) {
     const targetDirectory = getServerDirectoryFromExecStart(targetExecStart);
@@ -180,6 +186,10 @@ export async function updateCodbaseLinkedFiles({
     await sudoSymlinkContents(`${masterDirectory}/main`, `${targetDirectory}/main`, ["server_config.cfg"]);
     await sudoSymlinkContents(`${masterDirectory}/pb`, `${targetDirectory}/pb`);
     await sudoSymlinkContents(`${masterDirectory}/__rPAMv115b5`, `${targetDirectory}/__rPAMv115b5`, ["config_mp_server.cfg"]);
+    await execFileAsync("sudo", [SUDO_CHOWN, "-R", owner, targetDirectory], {
+      timeout: 30_000,
+      windowsHide: true,
+    });
     updated += 1;
   }
 
