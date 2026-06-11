@@ -49,6 +49,10 @@ function getCallOfDutyTemplateRoot() {
   return process.env.CALL_OF_DUTY_TEMPLATE_ROOT || `${getGameServersRoot()}/game_root/callofduty`;
 }
 
+function getCallOfDuty2TemplateRoot() {
+  return process.env.CALL_OF_DUTY2_TEMPLATE_ROOT || `${getGameServersRoot()}/game_root/callofduty2`;
+}
+
 function getGameServerGroup() {
   return process.env.GAME_SERVER_RUN_GROUP || "gamepanel-games";
 }
@@ -212,22 +216,27 @@ async function provisionCallOfDutyFiles({
   serverDir: string;
   ownerFolder: string;
 }) {
-  if (game !== "cod1" && game !== "coduo") {
+  if (game !== "cod1" && game !== "coduo" && game !== "cod2") {
     return;
   }
 
-  const templateRoot = getCallOfDutyTemplateRoot();
+  const templateRoot = game === "cod2" ? getCallOfDuty2TemplateRoot() : getCallOfDutyTemplateRoot();
   const owner = `${ownerFolder}:${getGameServerGroup()}`;
   const linkedDirectories = game === "coduo" ? ["main", "pb", "uo"] : ["main", "pb"];
   const binaryName = GAME_PROFILES[game].defaultBinaryName;
   const configSource =
-    game === "coduo"
+    game === "cod2"
+      ? `${templateRoot}/main/server_config.cfg`
+      : game === "coduo"
       ? `${templateRoot}/server_uo_config.cfg`
       : `${templateRoot}/server_cod1_config.cfg`;
   const configTarget =
     game === "coduo"
       ? `${serverDir}/uo/server_config.cfg`
       : `${serverDir}/main/server_config.cfg`;
+  const symlinkExcludesByDirectory: Record<string, string[]> = {
+    main: ["server_config.cfg"],
+  };
 
   for (const directory of linkedDirectories) {
     await execFileAsync("sudo", [SUDO_MKDIR, "-p", `${serverDir}/${directory}`], {
@@ -260,7 +269,7 @@ async function provisionCallOfDutyFiles({
   }
 
   for (const directory of linkedDirectories) {
-    await sudoSymlinkContents(`${templateRoot}/${directory}`, `${serverDir}/${directory}`);
+    await sudoSymlinkContents(`${templateRoot}/${directory}`, `${serverDir}/${directory}`, symlinkExcludesByDirectory[directory]);
   }
 }
 
