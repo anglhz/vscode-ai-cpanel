@@ -408,6 +408,7 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
           ) : (
             <ServersPanel
               isAdmin={isAdmin}
+              currentUser={currentUser}
               servers={servers}
               users={users}
               nodes={nodes}
@@ -621,6 +622,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 function ServersPanel({
   isAdmin,
+  currentUser,
   servers,
   users,
   nodes,
@@ -629,6 +631,7 @@ function ServersPanel({
   setMessage,
 }: {
   isAdmin: boolean;
+  currentUser: SessionUser;
   servers: GameServerDto[];
   users: UserDto[];
   nodes: NodeDto[];
@@ -642,6 +645,7 @@ function ServersPanel({
   const [updatingCodbaseLinks, setUpdatingCodbaseLinks] = useState(false);
   const [collapsedGames, setCollapsedGames] = useState<Record<string, boolean>>({});
   const groupedServers = useMemo(() => groupServersByGame(orderedServers), [orderedServers]);
+  const canUpdateCodbaseLinks = isMcflySessionUser(currentUser);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setOrderedServers(servers), 0);
@@ -720,25 +724,27 @@ function ServersPanel({
   return (
     <div className="space-y-6">
       {isAdmin ? <ServerForm users={users} nodes={nodes} reload={reload} setMessage={setMessage} /> : null}
-      <section className="rounded-lg border border-cyan-300/15 bg-[#07111f]/70 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-white">CoDBase linked files</p>
-            <p className="mt-1 text-sm text-neutral-400">
-              Sync new files from CoDBase #1 into match servers without replacing per-server configs.
-            </p>
+      {canUpdateCodbaseLinks ? (
+        <section className="rounded-lg border border-cyan-300/15 bg-[#07111f]/70 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-white">CoDBase linked files</p>
+              <p className="mt-1 text-sm text-neutral-400">
+                Sync new files from CoDBase #1 into match servers without replacing per-server configs.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={updateCodbaseLinks}
+              disabled={updatingCodbaseLinks}
+              className="flex h-11 items-center justify-center gap-2 rounded-md border border-cyan-300/25 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10 disabled:cursor-wait disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${updatingCodbaseLinks ? "animate-spin" : ""}`} />
+              Update CoDBase links
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={updateCodbaseLinks}
-            disabled={updatingCodbaseLinks}
-            className="flex h-11 items-center justify-center gap-2 rounded-md border border-cyan-300/25 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10 disabled:cursor-wait disabled:opacity-60"
-          >
-            <RefreshCw className={`h-4 w-4 ${updatingCodbaseLinks ? "animate-spin" : ""}`} />
-            Update CoDBase links
-          </button>
-        </div>
-      </section>
+        </section>
+      ) : null}
       <div className="overflow-hidden rounded-lg border border-white/10 bg-[#09111d]/70 shadow-2xl shadow-black/25 backdrop-blur-xl">
         <div className="hidden grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.7fr)_minmax(230px,0.9fr)] border-b border-white/10 bg-white/[0.07] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-300 lg:grid">
           <span>Server name</span>
@@ -1449,6 +1455,13 @@ function formatPlayerSummary(summary?: { count: number; maxClients: number | nul
   }
 
   return summary.maxClients ? `${summary.count}/${summary.maxClients}` : String(summary.count);
+}
+
+function isMcflySessionUser(user: SessionUser) {
+  const normalizedName = user.name.trim().toLowerCase();
+  const emailLocalPart = user.email.split("@")[0]?.trim().toLowerCase();
+
+  return normalizedName === "mcfly" || emailLocalPart === "mcfly";
 }
 
 function getServerGame(server: GameServerDto) {

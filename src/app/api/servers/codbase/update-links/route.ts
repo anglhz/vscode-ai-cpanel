@@ -17,8 +17,25 @@ const TARGET_SERVICES = [
   "cod1-28913.service",
 ];
 
+function isMcflyIdentity(user: { name: string; email: string; sftpUsername: string | null }) {
+  const normalizedName = user.name.trim().toLowerCase();
+  const emailLocalPart = user.email.split("@")[0]?.trim().toLowerCase();
+  const normalizedSftpUsername = user.sftpUsername?.trim().toLowerCase();
+
+  return normalizedName === "mcfly" || emailLocalPart === "mcfly" || normalizedSftpUsername === "mcfly";
+}
+
 export async function POST() {
   const user = await requireUser();
+  const currentUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { name: true, email: true, sftpUsername: true },
+  });
+
+  if (!currentUser || !isMcflyIdentity(currentUser)) {
+    return NextResponse.json({ error: "Only Mcfly can update CoDBase linked files." }, { status: 403 });
+  }
+
   const servers = await prisma.gameServer.findMany({
     where: {
       systemdServiceName: {
