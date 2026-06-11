@@ -207,6 +207,31 @@ async function sudoCopyFile(sourcePath: string, targetPath: string) {
   });
 }
 
+async function sudoSymlinkFile(sourcePath: string, targetPath: string) {
+  if (await pathExists(targetPath)) {
+    return;
+  }
+
+  await execFileAsync("sudo", [SUDO_LN, "-s", sourcePath, targetPath], {
+    timeout: 10_000,
+    windowsHide: true,
+  });
+}
+
+async function sudoMakeExecutable(filePath: string) {
+  await execFileAsync("sudo", [SUDO_CHMOD, "+x", filePath], {
+    timeout: 10_000,
+    windowsHide: true,
+  });
+}
+
+async function sudoChownSymlink(owner: string, linkPath: string) {
+  await execFileAsync("sudo", [SUDO_CHOWN, "-h", owner, linkPath], {
+    timeout: 10_000,
+    windowsHide: true,
+  });
+}
+
 async function provisionCallOfDutyFiles({
   game,
   serverDir,
@@ -250,10 +275,18 @@ async function provisionCallOfDutyFiles({
   }
 
   if (!(await pathExists(`${serverDir}/${binaryName}`))) {
-    await execFileAsync("sudo", [SUDO_LN, "-s", `${templateRoot}/${binaryName}`, `${serverDir}/${binaryName}`], {
-      timeout: 10_000,
-      windowsHide: true,
-    });
+    await sudoSymlinkFile(`${templateRoot}/${binaryName}`, `${serverDir}/${binaryName}`);
+  }
+  await sudoMakeExecutable(`${serverDir}/${binaryName}`);
+  await sudoChownSymlink(owner, `${serverDir}/${binaryName}`);
+
+  if (game === "cod2") {
+    const cod2LibraryName = "libCoD2x.so";
+    const libraryPath = `${serverDir}/${cod2LibraryName}`;
+
+    await sudoSymlinkFile(`${templateRoot}/${cod2LibraryName}`, libraryPath);
+    await sudoMakeExecutable(libraryPath);
+    await sudoChownSymlink(owner, libraryPath);
   }
 
   if (!(await pathExists(configTarget))) {
