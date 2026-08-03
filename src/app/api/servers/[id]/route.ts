@@ -25,6 +25,12 @@ const serverSchema = z.object({
   execStart: execStartSchema,
 });
 
+const fullStartupUserServerSchema = z.object({
+  name: z.string().min(2),
+  description: z.string().min(2),
+  execStart: execStartSchema,
+});
+
 const userServerSchema = z.object({
   name: z.string().min(2),
   description: z.string().min(2),
@@ -41,6 +47,10 @@ function isVoiceServer(serviceName: string) {
   return serviceName.startsWith("ts3-");
 }
 
+function canEditFullStartup(role: string) {
+  return role === "ADMIN" || role === "STARTUP_USER";
+}
+
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
   const { id } = await context.params;
@@ -50,7 +60,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const parsed = user.role === "ADMIN" ? serverSchema.safeParse(body) : userServerSchema.safeParse(body);
+  const parsed =
+    user.role === "ADMIN"
+      ? serverSchema.safeParse(body)
+      : user.role === "STARTUP_USER"
+        ? fullStartupUserServerSchema.safeParse(body)
+        : userServerSchema.safeParse(body);
 
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid server payload." }, { status: 400 });
@@ -78,6 +93,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       : adminParsed;
     targetServiceName = adminParsed.systemdServiceName;
     targetExecStart = voiceServer ? existingServer.execStart : adminParsed.execStart;
+  } else if (canEditFullStartup(user.role)) {
+    const fullStartupParsed = fullStartupUserServerSchema.parse(body);
+    targetExecStart = voiceServer ? existingServer.execStart : fullStartupParsed.execStart;
+    data = voiceServer
+      ? {
+          name: fullStartupParsed.name,
+          description: fullStartupParsed.description,
+        }
+      : {
+          name: fullStartupParsed.name,
+          description: fullStartupParsed.description,
+          execStart: targetExecStart,
+        };
   } else {
     const userParsed = userServerSchema.parse(body);
     targetExecStart = voiceServer

@@ -10,7 +10,7 @@ export type SessionUser = {
   id: string;
   name: string;
   email: string;
-  role: "ADMIN" | "USER";
+  role: "ADMIN" | "USER" | "STARTUP_USER";
 };
 
 function getSessionSecret() {
@@ -110,6 +110,6 @@ export async function verifyLogin(email: string, password: string) {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role as "ADMIN" | "USER",
+    role: user.role as "ADMIN" | "USER" | "STARTUP_USER",
   };
 }

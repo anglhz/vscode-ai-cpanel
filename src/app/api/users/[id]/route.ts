@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-const roles = ["ADMIN", "USER"] as const;
+const roles = ["ADMIN", "USER", "STARTUP_USER"] as const;
 
 const updateUserSchema = z.object({
   name: z.string().min(2),

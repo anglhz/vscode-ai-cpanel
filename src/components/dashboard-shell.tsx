@@ -23,7 +23,7 @@ import {
 import Link from "next/link";
 import type { SessionUser } from "@/lib/auth";
 
-type Role = "ADMIN" | "USER";
+type Role = "ADMIN" | "USER" | "STARTUP_USER";
 type ServerStatus = "ONLINE" | "OFFLINE" | "STARTING" | "STOPPING" | "RESTARTING" | "UNKNOWN";
 
 type GameServerDto = {
@@ -503,7 +503,10 @@ function ServerOverview({
         <div className="mt-5 space-y-3">
           <MiniMetric label="Control mode" value="systemd" />
           <MiniMetric label="Access" value={currentUser.role === "ADMIN" ? "All servers" : "Assigned only"} />
-          <MiniMetric label="Startup edits" value={currentUser.role === "ADMIN" ? "Full command" : "Arguments only"} />
+          <MiniMetric
+            label="Startup edits"
+            value={currentUser.role === "ADMIN" || currentUser.role === "STARTUP_USER" ? "Full command" : "Arguments only"}
+          />
         </div>
       </aside>
     </section>
@@ -646,6 +649,7 @@ function ServersPanel({
   const [collapsedGames, setCollapsedGames] = useState<Record<string, boolean>>({});
   const groupedServers = useMemo(() => groupServersByGame(orderedServers), [orderedServers]);
   const canUpdateCodbaseLinks = isMcflySessionUser(currentUser);
+  const canEditFullStartup = currentUser.role === "ADMIN" || currentUser.role === "STARTUP_USER";
 
   useEffect(() => {
     const timer = window.setTimeout(() => setOrderedServers(servers), 0);
@@ -761,6 +765,7 @@ function ServersPanel({
               draggedServerId={draggedServerId}
               playerCounts={playerCounts}
               isAdmin={isAdmin}
+              canEditFullStartup={canEditFullStartup}
               reload={reload}
               setMessage={setMessage}
               onToggle={() =>
@@ -795,6 +800,7 @@ function GameServerGroup({
   draggedServerId,
   playerCounts,
   isAdmin,
+  canEditFullStartup,
   reload,
   setMessage,
   onToggle,
@@ -811,6 +817,7 @@ function GameServerGroup({
   draggedServerId: string;
   playerCounts: Record<string, { count: number; maxClients: number | null }>;
   isAdmin: boolean;
+  canEditFullStartup: boolean;
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
   onToggle: () => void;
@@ -882,6 +889,7 @@ function GameServerGroup({
                 server={server}
                 playerSummary={playerCounts[server.id]}
                 isAdmin={isAdmin}
+                canEditFullStartup={canEditFullStartup}
                 reload={reload}
                 setMessage={setMessage}
                 draggable
@@ -902,6 +910,7 @@ function ServerRow({
   server,
   playerSummary,
   isAdmin,
+  canEditFullStartup,
   reload,
   setMessage,
   draggable,
@@ -913,6 +922,7 @@ function ServerRow({
   server: GameServerDto;
   playerSummary?: { count: number; maxClients: number | null };
   isAdmin: boolean;
+  canEditFullStartup: boolean;
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
   draggable: boolean;
@@ -1097,6 +1107,7 @@ function ServerRow({
         <ServerConfigEditor
           server={server}
           isAdmin={isAdmin}
+          canEditFullStartup={canEditFullStartup}
           reload={reload}
           setMessage={setMessage}
         />
@@ -1226,11 +1237,13 @@ function TeamSpeakExternalViewer() {
 function ServerConfigEditor({
   server,
   isAdmin,
+  canEditFullStartup,
   reload,
   setMessage,
 }: {
   server: GameServerDto;
   isAdmin: boolean;
+  canEditFullStartup: boolean;
   reload: () => Promise<void>;
   setMessage: (message: string) => void;
 }) {
@@ -1246,6 +1259,12 @@ function ServerConfigEditor({
           systemdServiceName: formData.get("systemdServiceName"),
           execStart: isVoiceServer ? server.execStart : formData.get("execStart"),
         }
+      : canEditFullStartup
+        ? {
+            name: formData.get("name"),
+            description: formData.get("description"),
+            execStart: isVoiceServer ? server.execStart : formData.get("execStart"),
+          }
       : {
           name: formData.get("name"),
           description: formData.get("description"),
@@ -1302,7 +1321,7 @@ function ServerConfigEditor({
             />
           </>
         ) : null}
-        {isAdmin && !isVoiceServer ? (
+        {canEditFullStartup && !isVoiceServer ? (
           <label className="block">
             <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
               ExecStart
@@ -1316,7 +1335,7 @@ function ServerConfigEditor({
               placeholder="/opt/game-servers/server-1/server_binary +set net_port 28960"
             />
           </label>
-        ) : !isAdmin && !isVoiceServer ? (
+        ) : !canEditFullStartup && !isVoiceServer ? (
           <>
             <label className="block">
               <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
@@ -2423,6 +2442,7 @@ function UserForm({
               <Input name="password" type="password" placeholder="Password" />
               <select name="role" className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none">
                 <option value="USER">User</option>
+                <option value="STARTUP_USER">Startup user</option>
                 <option value="ADMIN">Admin</option>
               </select>
             </div>
@@ -2512,6 +2532,7 @@ function UserEditor({
         <Input name="sftpUsername" defaultValue={user.sftpUsername ?? ""} placeholder="SFTP username / folder" required={false} />
         <select name="role" defaultValue={user.role} className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none">
           <option value="USER">User</option>
+          <option value="STARTUP_USER">Startup user</option>
           <option value="ADMIN">Admin</option>
         </select>
       </div>
