@@ -53,6 +53,10 @@ function getCallOfDuty2TemplateRoot() {
   return process.env.CALL_OF_DUTY2_TEMPLATE_ROOT || `${getGameServersRoot()}/game_root/callofduty2`;
 }
 
+function getCallOfDuty16TemplateRoot() {
+  return process.env.CALL_OF_DUTY16_TEMPLATE_ROOT || `${getGameServersRoot()}/game_root/cod1.6`;
+}
+
 function getGameServerGroup() {
   return process.env.GAME_SERVER_RUN_GROUP || "gamepanel-games";
 }
@@ -207,6 +211,14 @@ async function sudoCopyFile(sourcePath: string, targetPath: string) {
   });
 }
 
+async function sudoCopyFileIfExists(sourcePath: string, targetPath: string) {
+  if (!(await pathExists(sourcePath)) || (await pathExists(targetPath))) {
+    return;
+  }
+
+  await sudoCopyFile(sourcePath, targetPath);
+}
+
 async function sudoSymlinkFile(sourcePath: string, targetPath: string) {
   if (await pathExists(targetPath)) {
     return;
@@ -230,6 +242,26 @@ async function sudoChownSymlink(owner: string, linkPath: string) {
     timeout: 10_000,
     windowsHide: true,
   });
+}
+
+async function sudoSymlinkTopLevelFiles(sourceDirectory: string, targetDirectory: string, excludeNames: string[] = []) {
+  const entries = await readdir(sourceDirectory);
+
+  for (const entry of entries) {
+    if (excludeNames.includes(entry)) {
+      continue;
+    }
+
+    const sourcePath = `${sourceDirectory}/${entry}`;
+    const targetPath = `${targetDirectory}/${entry}`;
+    const stats = await lstat(sourcePath);
+
+    if (stats.isDirectory()) {
+      continue;
+    }
+
+    await sudoSymlinkFile(sourcePath, targetPath);
+  }
 }
 
 async function provisionCallOfDutyFiles({
@@ -329,6 +361,36 @@ async function sudoWriteFile(filePath: string, content: string) {
   });
 }
 
+async function applySystemdServiceOverride({
+  serviceName,
+  workingDirectory,
+  execStart,
+  environment = {},
+}: {
+  serviceName: string;
+  workingDirectory: string;
+  execStart: string;
+  environment?: Record<string, string>;
+}) {
+  const unitDir = getSystemdUnitDir();
+  const overrideDir = `${unitDir}/${serviceName}.d`;
+  const overridePath = `${overrideDir}/override.conf`;
+  const environmentLines = Object.entries(environment)
+    .map(([key, value]) => `Environment=${key}=${value}`)
+    .join("\n");
+  const content = `[Service]\nEnvironment=HOME=${workingDirectory}\n${environmentLines ? `${environmentLines}\n` : ""}WorkingDirectory=${workingDirectory}\nExecStart=\nExecStart=${execStart}\n`;
+
+  await execFileAsync("sudo", [SUDO_MKDIR, "-p", overrideDir], {
+    timeout: 10_000,
+    windowsHide: true,
+  });
+  await sudoWriteFile(overridePath, content);
+  await execFileAsync("sudo", [SUDO_SYSTEMCTL, "daemon-reload"], {
+    timeout: 30_000,
+    windowsHide: true,
+  });
+}
+
 export async function runSystemdAction(serviceName: string, action: ServerAction) {
   assertSafeServiceName(serviceName);
 
@@ -354,21 +416,8 @@ export async function applySystemdExecStart(serviceName: string, execStart: stri
     return { skipped: true };
   }
 
-  const unitDir = getSystemdUnitDir();
-  const overrideDir = `${unitDir}/${serviceName}.d`;
-  const overridePath = `${overrideDir}/override.conf`;
   const workingDirectory = getWorkingDirectoryFromExecStart(execStart);
-  const content = `[Service]\nEnvironment=HOME=${workingDirectory}\nWorkingDirectory=${workingDirectory}\nExecStart=\nExecStart=${execStart}\n`;
-
-  await execFileAsync("sudo", [SUDO_MKDIR, "-p", overrideDir], {
-    timeout: 10_000,
-    windowsHide: true,
-  });
-  await sudoWriteFile(overridePath, content);
-  await execFileAsync("sudo", [SUDO_SYSTEMCTL, "daemon-reload"], {
-    timeout: 30_000,
-    windowsHide: true,
-  });
+  await applySystemdServiceOverride({ serviceName, workingDirectory, execStart });
 
   return { skipped: false };
 }
@@ -408,6 +457,105 @@ export async function deleteProvisionedServerDirectory(serviceName: string, fall
   });
 
   return { skipped: false, serverDirectory };
+}
+
+export async function upgradeCod1ServerTo16(serviceName: string, fallbackExecStart: string) {
+  assertSafeServiceName(serviceName);
+
+  const serviceMatch = serviceName.match(/^cod1-(\d+)\.service$/);
+
+  if (!serviceMatch) {
+    throw new Error("CoD1 1.6 upgrade is only available for cod1 services.");
+  }
+
+  const port = Number(serviceMatch[1]);
+  assertSafePort(port);
+
+  const effectiveExecStart = await getEffectiveSystemdExecStart(serviceName, fallbackExecStart);
+  const serverDirectory = getServerDirectoryFromExecStart(effectiveExecStart);
+  const [ownerFolder, game] = serverDirectory.slice(getGameServersRoot().length + 1).split("/");
+
+  assertSafePathSegment(ownerFolder, "owner folder");
+
+  if (game !== "cod1") {
+    throw new Error("CoD1 1.6 upgrade is only available for cod1 server folders.");
+  }
+
+  const templateRoot = getCallOfDuty16TemplateRoot();
+  const runtimeDirectory = `${serverDirectory}/cod16`;
+  const owner = `${ownerFolder}:${getGameServerGroup()}`;
+  const execStart = `${runtimeDirectory}/start.sh`;
+
+  if (process.env.SYSTEMD_SERVER_PROVISIONING_ENABLED !== "true") {
+    return { skipped: true, runtimeDirectory, execStart };
+  }
+
+  for (const directory of [runtimeDirectory, `${runtimeDirectory}/main`, `${runtimeDirectory}/__rPAMv115b5`]) {
+    await execFileAsync("sudo", [SUDO_MKDIR, "-p", directory], {
+      timeout: 10_000,
+      windowsHide: true,
+    });
+    await execFileAsync("sudo", [SUDO_CHOWN, owner, directory], {
+      timeout: 10_000,
+      windowsHide: true,
+    });
+  }
+
+  await sudoSymlinkTopLevelFiles(templateRoot, runtimeDirectory, ["matchdata.cfg", "competitive.cfg"]);
+  await sudoCopyFileIfExists(`${templateRoot}/matchdata.cfg`, `${runtimeDirectory}/matchdata.cfg`);
+  await sudoCopyFileIfExists(`${templateRoot}/competitive.cfg`, `${runtimeDirectory}/competitive.cfg`);
+  await sudoSymlinkContents(`${templateRoot}/main`, `${runtimeDirectory}/main`, [
+    "config_mp_server.cfg",
+    "games_mp.log",
+    "console_mp_server.log",
+  ]);
+  await sudoSymlinkContents(`${templateRoot}/__rPAMv115b5`, `${runtimeDirectory}/__rPAMv115b5`, [
+    "config_mp_server.cfg",
+    "games_mp.log",
+    "console_mp_server.log",
+    "screenshots",
+    "demos",
+  ]);
+  await sudoCopyFileIfExists(`${templateRoot}/main/config_mp_server.cfg`, `${runtimeDirectory}/main/config_mp_server.cfg`);
+  await sudoCopyFileIfExists(`${templateRoot}/__rPAMv115b5/config_mp_server.cfg`, `${runtimeDirectory}/__rPAMv115b5/config_mp_server.cfg`);
+
+  for (const filePath of [
+    execStart,
+    `${runtimeDirectory}/cod_lnxded`,
+    `${runtimeDirectory}/cod1plus.so`,
+    `${runtimeDirectory}/main/config_mp_server.cfg`,
+    `${runtimeDirectory}/__rPAMv115b5/config_mp_server.cfg`,
+    `${runtimeDirectory}/matchdata.cfg`,
+    `${runtimeDirectory}/competitive.cfg`,
+  ]) {
+    if (await pathExists(filePath)) {
+      await execFileAsync("sudo", [SUDO_CHOWN, "-h", owner, filePath], {
+        timeout: 10_000,
+        windowsHide: true,
+      });
+    }
+  }
+
+  for (const filePath of [execStart, `${runtimeDirectory}/cod_lnxded`, `${runtimeDirectory}/cod1plus.so`]) {
+    if (await pathExists(filePath)) {
+      await sudoMakeExecutable(filePath);
+    }
+  }
+
+  await applySystemdServiceOverride({
+    serviceName,
+    workingDirectory: runtimeDirectory,
+    execStart,
+    environment: {
+      SERVER_DIR: runtimeDirectory,
+      NET_PORT: String(port),
+      FS_GAME: "__rPAMv115b5",
+      GAMETYPE: "sd",
+      START_MAP: "mp_harbor",
+    },
+  });
+
+  return { skipped: false, runtimeDirectory, execStart };
 }
 
 export function buildProvisionedServerConfig({

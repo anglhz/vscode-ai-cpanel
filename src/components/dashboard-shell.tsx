@@ -32,6 +32,7 @@ type GameServerDto = {
   description: string;
   status: ServerStatus;
   displayOrder: number;
+  addressPort: string | null;
   node: NodeDto | null;
   systemdServiceName?: string;
   execStart: string;
@@ -1248,6 +1249,7 @@ function ServerConfigEditor({
   setMessage: (message: string) => void;
 }) {
   const isVoiceServer = isVoiceGameServer(server);
+  const canUpgradeCod16 = canEditFullStartup && !isVoiceServer && getServerGame(server) === "cod1";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1301,6 +1303,22 @@ function ServerConfigEditor({
       await reload();
     } else {
       setMessage("Could not delete server.");
+    }
+  }
+
+  async function upgradeCod16() {
+    if (!window.confirm(`Upgrade ${server.name} to CoD1 1.6X startup? The server will not restart automatically.`)) {
+      return;
+    }
+
+    const response = await fetch(`/api/servers/${server.id}/cod16-upgrade`, { method: "POST" });
+    const data = (await response.json().catch(() => null)) as { error?: string; runtimeDirectory?: string } | null;
+
+    if (response.ok) {
+      setMessage(data?.runtimeDirectory ? `CoD1 1.6X startup enabled at ${data.runtimeDirectory}.` : "CoD1 1.6X startup enabled.");
+      await reload();
+    } else {
+      setMessage(data?.error ?? "Could not upgrade CoD1 server to 1.6X.");
     }
   }
 
@@ -1416,6 +1434,15 @@ function ServerConfigEditor({
               Delete server
             </button>
           ) : null}
+          {canUpgradeCod16 ? (
+            <button
+              type="button"
+              onClick={upgradeCod16}
+              className="h-10 rounded-md border border-emerald-400/30 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/10"
+            >
+              Upgrade to v1.6
+            </button>
+          ) : null}
         </div>
       </form>
     </section>
@@ -1458,7 +1485,10 @@ function ActionButton({
 }
 
 function getServerAddress(server: GameServerDto) {
-  const port = server.execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1] ?? server.execStart.match(/default_voice_port=(\d+)/)?.[1];
+  const port =
+    server.addressPort ??
+    server.execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1] ??
+    server.execStart.match(/default_voice_port=(\d+)/)?.[1];
   const ip = server.node?.publicIp || SERVER_PUBLIC_IP;
 
   return port ? `${ip}:${port}` : "Port unknown";
@@ -1514,7 +1544,7 @@ function isVoiceGameServer(server: GameServerDto) {
 }
 
 function isQueryableGameServer(server: GameServerDto) {
-  return !isVoiceGameServer(server) && Boolean(server.execStart.match(/\+set\s+net_port\s+\d+/));
+  return !isVoiceGameServer(server) && Boolean(server.addressPort ?? server.execStart.match(/\+set\s+net_port\s+\d+/));
 }
 
 function ServerForm({

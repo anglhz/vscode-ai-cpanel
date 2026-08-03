@@ -9,8 +9,8 @@ function getPublicIp(node?: { publicIp: string } | null) {
   return node?.publicIp || process.env.SERVER_PUBLIC_IP || process.env.NEXT_PUBLIC_SERVER_PUBLIC_IP || "144.76.41.252";
 }
 
-function getPortFromExecStart(execStart: string) {
-  return execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1] ?? null;
+function getPortFromExecStart(execStart: string, serviceName: string) {
+  return execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1] ?? serviceName.match(/^[a-zA-Z0-9_-]+-(\d+)\.service$/)?.[1] ?? null;
 }
 
 function getTeamSpeakVoicePort(execStart: string, serviceName: string) {
@@ -53,7 +53,7 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
   const voiceServer = isVoiceServer(server.systemdServiceName, server.execStart);
   const port = voiceServer
     ? getTeamSpeakVoicePort(server.execStart, server.systemdServiceName)
-    : getPortFromExecStart(server.execStart);
+    : getPortFromExecStart(server.execStart, server.systemdServiceName);
 
   if (!port) {
     return NextResponse.json({ error: "Server port could not be detected." }, { status: 400 });

@@ -36,12 +36,19 @@ export async function serializeServerWithEffectiveExecStart(server: ServerWithAc
 }
 
 function serializeServerWithExecStart(server: ServerWithAccess, execStart: string, role?: string) {
+  const addressPort =
+    execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1] ??
+    execStart.match(/default_voice_port=(\d+)/)?.[1] ??
+    server.systemdServiceName.match(/^[a-zA-Z0-9_-]+-(\d+)\.service$/)?.[1] ??
+    null;
+
   return {
     id: server.id,
     name: server.name,
     description: server.description,
     status: server.status,
     displayOrder: server.displayOrder,
+    addressPort,
     node: server.node
       ? {
           id: server.node.id,
