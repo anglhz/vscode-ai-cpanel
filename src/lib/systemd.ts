@@ -363,11 +363,15 @@ async function sudoWriteFile(filePath: string, content: string) {
 
 async function applySystemdServiceOverride({
   serviceName,
+  user,
+  group,
   workingDirectory,
   execStart,
   environment = {},
 }: {
   serviceName: string;
+  user?: string;
+  group?: string;
   workingDirectory: string;
   execStart: string;
   environment?: Record<string, string>;
@@ -378,7 +382,8 @@ async function applySystemdServiceOverride({
   const environmentLines = Object.entries(environment)
     .map(([key, value]) => `Environment=${key}=${value}`)
     .join("\n");
-  const content = `[Service]\nEnvironment=HOME=${workingDirectory}\n${environmentLines ? `${environmentLines}\n` : ""}WorkingDirectory=${workingDirectory}\nExecStart=\nExecStart=${execStart}\n`;
+  const identityLines = `${user ? `User=${user}\n` : ""}${group ? `Group=${group}\n` : ""}`;
+  const content = `[Service]\n${identityLines}Environment=HOME=${workingDirectory}\n${environmentLines ? `${environmentLines}\n` : ""}WorkingDirectory=${workingDirectory}\nExecStart=\nExecStart=${execStart}\n`;
 
   await execFileAsync("sudo", [SUDO_MKDIR, "-p", overrideDir], {
     timeout: 10_000,
@@ -544,6 +549,8 @@ export async function upgradeCod1ServerTo16(serviceName: string, fallbackExecSta
 
   await applySystemdServiceOverride({
     serviceName,
+    user: ownerFolder,
+    group: getGameServerGroup(),
     workingDirectory: runtimeDirectory,
     execStart,
     environment: {
