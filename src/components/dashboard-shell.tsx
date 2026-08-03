@@ -33,6 +33,7 @@ type GameServerDto = {
   status: ServerStatus;
   displayOrder: number;
   addressPort: string | null;
+  gameVersion: string;
   node: NodeDto | null;
   systemdServiceName?: string;
   execStart: string;
@@ -980,6 +981,7 @@ function ServerRow({
     ? { count: players.playerCount, maxClients: players.maxClients }
     : playerSummary;
   const playerSummaryLabel = formatPlayerSummary(rowPlayerSummary);
+  const versionLabel = server.gameVersion ? `v${server.gameVersion}` : "";
 
   return (
     <details
@@ -1037,6 +1039,11 @@ function ServerRow({
               {playerSummaryLabel ? (
                 <span className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-0.5 font-mono text-sm font-semibold text-neutral-100">
                   {playerSummaryLabel}
+                </span>
+              ) : null}
+              {versionLabel ? (
+                <span className="text-xs font-semibold uppercase tracking-wide text-cyan-100/70">
+                  {versionLabel}
                 </span>
               ) : null}
             </div>
@@ -1250,6 +1257,7 @@ function ServerConfigEditor({
 }) {
   const isVoiceServer = isVoiceGameServer(server);
   const canUpgradeCod16 = canEditFullStartup && !isVoiceServer && getServerGame(server) === "cod1";
+  const isCod16 = canUpgradeCod16 && server.gameVersion === "1.6";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1319,6 +1327,22 @@ function ServerConfigEditor({
       await reload();
     } else {
       setMessage(data?.error ?? "Could not upgrade CoD1 server to 1.6X.");
+    }
+  }
+
+  async function downgradeCod16() {
+    if (!window.confirm(`Downgrade ${server.name} back to CoD1 v1.5 startup? The server will not restart automatically.`)) {
+      return;
+    }
+
+    const response = await fetch(`/api/servers/${server.id}/cod16-downgrade`, { method: "POST" });
+    const data = (await response.json().catch(() => null)) as { error?: string; serverDirectory?: string } | null;
+
+    if (response.ok) {
+      setMessage(data?.serverDirectory ? `CoD1 v1.5 startup restored at ${data.serverDirectory}.` : "CoD1 v1.5 startup restored.");
+      await reload();
+    } else {
+      setMessage(data?.error ?? "Could not downgrade CoD1 server to v1.5.");
     }
   }
 
@@ -1437,10 +1461,14 @@ function ServerConfigEditor({
           {canUpgradeCod16 ? (
             <button
               type="button"
-              onClick={upgradeCod16}
-              className="h-10 rounded-md border border-emerald-400/30 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/10"
+              onClick={isCod16 ? downgradeCod16 : upgradeCod16}
+              className={`h-10 rounded-md border px-4 text-sm font-semibold transition ${
+                isCod16
+                  ? "border-amber-400/35 text-amber-100 hover:bg-amber-400/10"
+                  : "border-emerald-400/30 text-emerald-100 hover:bg-emerald-400/10"
+              }`}
             >
-              Upgrade to v1.6
+              {isCod16 ? "Downgrade to v1.5" : "Upgrade to v1.6"}
             </button>
           ) : null}
         </div>

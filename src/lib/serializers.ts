@@ -23,6 +23,30 @@ type ServerWithAccess = {
   assignedUsers?: { userId: string }[];
 };
 
+function getServerGameVersion(serviceName: string, execStart: string) {
+  if (serviceName.startsWith("cod1-")) {
+    return /\/cod16\/start\.sh(?:\s|$)/.test(execStart) ? "1.6" : "1.5";
+  }
+
+  if (serviceName.startsWith("coduo-")) {
+    return "UO";
+  }
+
+  if (serviceName.startsWith("cod2-")) {
+    return "1.3";
+  }
+
+  if (serviceName.startsWith("cod4-")) {
+    return "1.7";
+  }
+
+  if (serviceName.startsWith("ts3-")) {
+    return "3";
+  }
+
+  return "Custom";
+}
+
 export function serializeServer(server: ServerWithAccess, role?: string) {
   return serializeServerWithExecStart(server, server.execStart, role);
 }
@@ -49,6 +73,7 @@ function serializeServerWithExecStart(server: ServerWithAccess, execStart: strin
     status: server.status,
     displayOrder: server.displayOrder,
     addressPort,
+    gameVersion: getServerGameVersion(server.systemdServiceName, execStart),
     node: server.node
       ? {
           id: server.node.id,

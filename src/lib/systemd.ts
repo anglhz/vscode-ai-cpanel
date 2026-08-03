@@ -565,6 +565,47 @@ export async function upgradeCod1ServerTo16(serviceName: string, fallbackExecSta
   return { skipped: false, runtimeDirectory, execStart };
 }
 
+export async function downgradeCod1ServerTo15(serviceName: string, fallbackExecStart: string) {
+  assertSafeServiceName(serviceName);
+
+  const serviceMatch = serviceName.match(/^cod1-(\d+)\.service$/);
+
+  if (!serviceMatch) {
+    throw new Error("CoD1 1.5 downgrade is only available for cod1 services.");
+  }
+
+  const port = Number(serviceMatch[1]);
+  assertSafePort(port);
+
+  const effectiveExecStart = await getEffectiveSystemdExecStart(serviceName, fallbackExecStart);
+  const serverDirectory = getServerDirectoryFromExecStart(effectiveExecStart);
+  const [ownerFolder, game] = serverDirectory.slice(getGameServersRoot().length + 1).split("/");
+
+  assertSafePathSegment(ownerFolder, "owner folder");
+
+  if (game !== "cod1") {
+    throw new Error("CoD1 1.5 downgrade is only available for cod1 server folders.");
+  }
+
+  const maxClients = Number(effectiveExecStart.match(/\+set\s+sv_maxclients\s+(\d+)/)?.[1] ?? 16);
+  const binaryPath = `${serverDirectory}/cod_lnxded`;
+  const execStart = `${binaryPath} +set fs_homepath ${serverDirectory} +set fs_basepath ${serverDirectory} +set dedicated 2 +set net_port ${port} +set sv_maxclients ${maxClients} +exec server_config.cfg +map_rotate`;
+
+  if (process.env.SYSTEMD_SERVER_PROVISIONING_ENABLED !== "true") {
+    return { skipped: true, serverDirectory, execStart };
+  }
+
+  await applySystemdServiceOverride({
+    serviceName,
+    user: ownerFolder,
+    group: getGameServerGroup(),
+    workingDirectory: serverDirectory,
+    execStart,
+  });
+
+  return { skipped: false, serverDirectory, execStart };
+}
+
 export function buildProvisionedServerConfig({
   name,
   ownerFolder,
