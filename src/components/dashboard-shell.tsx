@@ -13,6 +13,7 @@ import {
   LogOut,
   Plus,
   RefreshCw,
+  Send,
   Server,
   Shield,
   Square,
@@ -1111,6 +1112,7 @@ function ServerRow({
             onRefresh={loadPlayers}
             kind={isVoiceGameServer(server) ? "voice" : "game"}
           />
+          <ServerConsole server={server} setMessage={setMessage} />
         </div>
         <ServerConfigEditor
           server={server}
@@ -1239,6 +1241,162 @@ function TeamSpeakExternalViewer() {
     <div className="mt-4 rounded-md border border-white/10 bg-white/[0.03] p-3">
       <div id="ts3viewer_1131191" />
     </div>
+  );
+}
+
+function ServerConsole({
+  server,
+  setMessage,
+}: {
+  server: GameServerDto;
+  setMessage: (message: string) => void;
+}) {
+  const [connected, setConnected] = useState(false);
+  const [lines, setLines] = useState<string[]>([]);
+  const [error, setError] = useState("");
+  const [command, setCommand] = useState("");
+  const [rconBusy, setRconBusy] = useState(false);
+  const isVoiceServer = isVoiceGameServer(server);
+
+  useEffect(() => {
+    if (!connected) {
+      return;
+    }
+
+    const events = new EventSource(`/api/servers/${server.id}/logs`);
+
+    events.addEventListener("log", (event) => {
+      const data = JSON.parse((event as MessageEvent).data) as { line?: string };
+      if (data.line) {
+        setLines((current) => [...current.slice(-299), data.line as string]);
+      }
+    });
+
+    events.addEventListener("console-error", (event) => {
+      const data = JSON.parse((event as MessageEvent).data) as { message?: string };
+      setError(data.message ?? "Console stream failed.");
+    });
+
+    events.addEventListener("close", () => {
+      setConnected(false);
+    });
+
+    events.onerror = () => {
+      setError("Console stream disconnected.");
+      setConnected(false);
+      events.close();
+    };
+
+    return () => {
+      events.close();
+    };
+  }, [connected, server.id]);
+
+  async function sendRconCommand(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = command.trim();
+
+    if (!trimmed) {
+      return;
+    }
+
+    setRconBusy(true);
+    const response = await fetch(`/api/servers/${server.id}/rcon`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: trimmed }),
+    });
+    const data = (await response.json().catch(() => null)) as { output?: string; error?: string } | null;
+    setRconBusy(false);
+
+    if (!response.ok) {
+      const message = data?.error ?? "Could not send RCON command.";
+      setError(message);
+      setMessage(message);
+      return;
+    }
+
+    setLines((current) => [
+      ...current.slice(-294),
+      `> ${trimmed}`,
+      ...(data?.output ? data.output.split(/\r?\n/).filter(Boolean) : ["RCON command sent."]),
+    ]);
+    setCommand("");
+  }
+
+  return (
+    <section className="rounded-lg border border-white/10 bg-[#07111f]/70">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Live console</p>
+          <p className="mt-1 text-sm text-neutral-400">
+            {connected ? "Streaming systemd logs" : "Last 200 lines when connected"}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setLines([]);
+              setError("");
+              setConnected((current) => !current);
+            }}
+            className={`h-9 rounded-md border px-3 text-sm font-medium transition ${
+              connected
+                ? "border-red-400/30 text-red-100 hover:bg-red-400/10"
+                : "border-cyan-300/30 text-cyan-100 hover:bg-cyan-300/10"
+            }`}
+          >
+            {connected ? "Disconnect" : "Connect"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setLines([])}
+            className="h-9 rounded-md border border-white/10 px-3 text-sm font-medium text-neutral-300 transition hover:bg-white/5"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <div className="max-h-80 min-h-48 overflow-y-auto bg-black/30 p-3 font-mono text-xs leading-5 text-neutral-300">
+        {lines.length > 0 ? (
+          lines.map((line, index) => (
+            <p key={`${line}-${index}`} className="whitespace-pre-wrap break-words">
+              {line}
+            </p>
+          ))
+        ) : (
+          <p className="text-neutral-500">Connect to view live service logs.</p>
+        )}
+      </div>
+
+      {error ? <p className="border-t border-white/10 px-4 py-2 text-sm text-red-200">{error}</p> : null}
+
+      {!isVoiceServer ? (
+        <form onSubmit={sendRconCommand} className="flex flex-col gap-2 border-t border-white/10 p-3 sm:flex-row">
+          <input
+            value={command}
+            onChange={(event) => setCommand(event.target.value)}
+            maxLength={200}
+            className="min-h-10 flex-1 rounded-md border border-white/10 bg-neutral-900 px-3 font-mono text-sm text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
+            placeholder="RCON command, for example: status"
+          />
+          <button
+            type="submit"
+            disabled={rconBusy || !command.trim()}
+            className="flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Send className="h-4 w-4" />
+            Send
+          </button>
+        </form>
+      ) : (
+        <p className="border-t border-white/10 px-4 py-3 text-sm text-neutral-400">
+          TeamSpeak commands are managed from the TeamSpeak page.
+        </p>
+      )}
+    </section>
   );
 }
 
