@@ -5,6 +5,7 @@ import { isLocalNode } from "@/lib/node-client";
 import { prisma } from "@/lib/prisma";
 import { canAccessServer } from "@/lib/rbac";
 import { sendCodRcon } from "@/lib/server-console";
+import { getEffectiveSystemdExecStart } from "@/lib/systemd";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,16 @@ function getPublicIp(node?: { publicIp: string } | null) {
 
 function getPortFromServer(execStart: string, serviceName: string) {
   return execStart.match(/\+set\s+net_port\s+(\d+)/)?.[1] ?? serviceName.match(/^[a-zA-Z0-9_-]+-(\d+)\.service$/)?.[1] ?? null;
+}
+
+function getRconPasswordFromExecStart(execStart: string) {
+  const quoted = execStart.match(/\+set\s+rconpassword\s+"((?:\\"|[^"])*)"/);
+
+  if (quoted?.[1]) {
+    return quoted[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  }
+
+  return execStart.match(/\+set\s+rconpassword\s+(\S+)/)?.[1] ?? "";
 }
 
 function isVoiceServer(serviceName: string, execStart: string) {
@@ -57,11 +68,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "RCON currently supports local servers only." }, { status: 400 });
   }
 
-  if (isVoiceServer(server.systemdServiceName, server.execStart)) {
+  const effectiveExecStart = await getEffectiveSystemdExecStart(server.systemdServiceName, server.execStart);
+
+  if (isVoiceServer(server.systemdServiceName, effectiveExecStart)) {
     return NextResponse.json({ error: "Use the TeamSpeak page for TeamSpeak commands." }, { status: 400 });
   }
 
-  const port = getPortFromServer(server.execStart, server.systemdServiceName);
+  const port = getPortFromServer(effectiveExecStart, server.systemdServiceName);
 
   if (!port) {
     return NextResponse.json({ error: "Server port could not be detected." }, { status: 400 });
@@ -71,7 +84,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const output = await sendCodRcon({
       host: getPublicIp(server.node),
       port: Number(port),
-      password: server.rconPassword,
+      password: server.rconPassword || getRconPasswordFromExecStart(effectiveExecStart),
       command: parsed.data.command,
     });
 
