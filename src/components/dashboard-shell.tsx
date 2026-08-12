@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   ChevronsLeft,
@@ -1256,7 +1256,16 @@ function ServerConsole({
   const [error, setError] = useState("");
   const [command, setCommand] = useState("");
   const [rconBusy, setRconBusy] = useState(false);
+  const consoleRef = useRef<HTMLDivElement | null>(null);
   const isVoiceServer = isVoiceGameServer(server);
+
+  useEffect(() => {
+    const consoleElement = consoleRef.current;
+
+    if (consoleElement) {
+      consoleElement.scrollTop = consoleElement.scrollHeight;
+    }
+  }, [lines]);
 
   useEffect(() => {
     if (!connected) {
@@ -1359,7 +1368,10 @@ function ServerConsole({
         </div>
       </div>
 
-      <div className="max-h-80 min-h-48 overflow-y-auto bg-black/30 p-3 font-mono text-xs leading-5 text-neutral-300">
+      <div
+        ref={consoleRef}
+        className="max-h-80 min-h-48 overflow-y-auto bg-black/30 p-3 font-mono text-xs leading-5 text-neutral-300"
+      >
         {lines.length > 0 ? (
           lines.map((line, index) => (
             <p key={`${line}-${index}`} className="whitespace-pre-wrap break-words">
