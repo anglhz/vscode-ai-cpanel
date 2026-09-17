@@ -1,12 +1,13 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Activity,
   ChevronsLeft,
   ChevronsRight,
   ChevronDown,
   CirclePower,
+  Clock,
   Gauge,
   GripVertical,
   LayoutDashboard,
@@ -15,13 +16,13 @@ import {
   RefreshCw,
   Send,
   Server,
-  Shield,
   Square,
   Trash2,
   Users,
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { BrandLogo } from "./brand-logo";
 import type { SessionUser } from "@/lib/auth";
 
 type Role = "ADMIN" | "USER" | "STARTUP_USER";
@@ -142,12 +143,12 @@ type TeamSpeakGroupDto = {
 type PlayersPanelKind = "game" | "voice";
 
 const statusStyle: Record<ServerStatus, string> = {
-  ONLINE: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
-  OFFLINE: "border-neutral-500/30 bg-neutral-500/10 text-neutral-300",
-  STARTING: "border-cyan-400/30 bg-cyan-400/10 text-cyan-200",
-  STOPPING: "border-amber-400/30 bg-amber-400/10 text-amber-200",
-  RESTARTING: "border-violet-400/30 bg-violet-400/10 text-violet-200",
-  UNKNOWN: "border-white/10 bg-white/5 text-neutral-300",
+  ONLINE: "gp-pill-emerald",
+  OFFLINE: "gp-pill-neutral",
+  STARTING: "gp-pill-cyan",
+  STOPPING: "gp-pill-amber",
+  RESTARTING: "gp-pill-violet",
+  UNKNOWN: "gp-pill-neutral",
 };
 const SERVER_PUBLIC_IP = process.env.NEXT_PUBLIC_SERVER_PUBLIC_IP ?? "144.76.41.252";
 const SERVER_GAME_OPTIONS = [
@@ -308,31 +309,22 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#111827] text-neutral-100">
-      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(135deg,#162033_0%,#0a1020_48%,#061b22_100%)]" />
-      <div className="pointer-events-none fixed inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.035)_1px,transparent_1px)] [background-size:72px_72px]" />
+    <div className="relative min-h-screen text-gp-ink">
+      <div className="gp-ambient" />
+      <div className="gp-grid-overlay" />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-30 hidden border-r border-white/10 bg-[#07111f]/85 px-4 py-8 shadow-2xl shadow-black/30 backdrop-blur-xl transition-[width] duration-200 lg:block ${
-          sidebarCollapsed ? "w-20" : "w-64"
+        className={`gp-rail left-3 top-3 bottom-3 lg:flex lg:flex-col lg:px-3 lg:py-4 transition-[width] duration-200 ${
+          sidebarCollapsed ? "lg:w-[4.75rem]" : "lg:w-[15rem]"
         }`}
       >
         <div className={`flex items-center gap-2 ${sidebarCollapsed ? "justify-center" : "justify-between"}`}>
-          <Link href="/dashboard" aria-label="Go to dashboard start">
+          <Link href="/dashboard" aria-label="Go to dashboard start" className="min-w-0">
             <Brand collapsed={sidebarCollapsed} />
           </Link>
-          <button
-            type="button"
-            onClick={() => setSidebarCollapsed((value) => !value)}
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 text-neutral-300 transition hover:bg-white/5 ${
-              sidebarCollapsed ? "absolute right-[-1.25rem] top-14 bg-[#07111f] shadow-lg shadow-black/20" : ""
-            }`}
-            title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
-          >
-            {sidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
-          </button>
         </div>
-        <nav className={sidebarCollapsed ? "mt-12 space-y-3" : "mt-8 space-y-2"}>
+
+        <nav className={`mt-7 flex flex-col gap-2 ${sidebarCollapsed ? "items-center" : "items-stretch"}`}>
           <NavButton active={view === "servers"} onClick={() => setView("servers")} icon={Server} collapsed={sidebarCollapsed}>
             Servers
           </NavButton>
@@ -350,39 +342,79 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
             </NavButton>
           ) : null}
         </nav>
+
+        <div className="flex-1" />
+
+        <button
+          type="button"
+          onClick={() => setSidebarCollapsed((value) => !value)}
+          className={`gp-nav-item ${sidebarCollapsed ? "mx-auto" : "w-full justify-start gap-3 px-3"}`}
+          title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
+        >
+          {sidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+          {sidebarCollapsed ? null : <span className="truncate text-[13px] font-medium">Collapse</span>}
+        </button>
+
         <button
           onClick={logout}
-          className="absolute bottom-5 left-4 right-4 flex h-11 items-center justify-center gap-2 rounded-md border border-white/10 text-sm font-medium text-neutral-300 transition hover:bg-white/5"
+          className={`gp-nav-item mt-2 ${sidebarCollapsed ? "mx-auto" : "w-full justify-start gap-3 px-3"}`}
+          title="Sign out"
         >
-          <LogOut className="h-4 w-4" />
-          {sidebarCollapsed ? null : "Sign out"}
+          <LogOut className="h-4 w-4 shrink-0" />
+          {sidebarCollapsed ? null : <span className="truncate text-[13px] font-medium">Sign out</span>}
         </button>
+
+        <div
+          className={`mt-3 flex items-center gap-3 rounded-[15px] border border-white/[0.08] bg-white/[0.04] p-2.5 ${
+            sidebarCollapsed ? "justify-center" : ""
+          }`}
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-[11px] font-bold text-white">
+            {currentUser.name
+              .split(" ")
+              .map((part) => part[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()}
+          </span>
+          {sidebarCollapsed ? null : (
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-semibold text-white">{currentUser.name}</p>
+              <p className="truncate text-[11px] text-gp-mute">{currentUser.role}</p>
+            </div>
+          )}
+        </div>
       </aside>
 
       <main
-        className={`relative z-10 pb-24 transition-[margin] duration-200 lg:pb-8 ${
-          sidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
+        className={`relative z-10 pb-28 transition-[padding] duration-200 lg:pb-8 ${
+          sidebarCollapsed ? "lg:pl-[6.5rem]" : "lg:pl-[16.75rem]"
         }`}
       >
-        <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0a1220]/80 px-4 py-4 shadow-lg shadow-black/15 backdrop-blur-xl sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm text-cyan-200">Signed in as {currentUser.name}</p>
-              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                {view === "users" ? "User Access" : view === "nodes" ? "Server Nodes" : view === "teamspeak" ? "TeamSpeak" : "Server Control"}
-              </h1>
+        <header className="px-4 pt-4 sm:px-6 lg:px-7">
+          <div className="gp-card gp-rise flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+            <div className="flex min-w-0 items-center gap-3">
+              {/* The rail carries the mark from lg up; show it inline below that. */}
+              <BrandLogo size="sm" className="lg:hidden" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-blue-200/80">
+                  <Greeting name={currentUser.name} />
+                </p>
+                <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight text-white sm:text-[1.7rem]">
+                  {view === "users" ? "User Access" : view === "nodes" ? "Server Nodes" : view === "teamspeak" ? "TeamSpeak" : "Server Control"}
+                </h1>
+              </div>
             </div>
-            <div className="hidden items-center gap-3 sm:flex">
+            <div className="flex flex-wrap items-center gap-2">
               <Stat label="Servers" value={servers.length} />
               <Stat label="Online" value={onlineCount} />
-              <span className="rounded-md border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-sm font-medium text-cyan-100">
-                {currentUser.role}
-              </span>
+              <span className="gp-pill gp-pill-blue">{currentUser.role}</span>
+              <LiveClock />
             </div>
           </div>
         </header>
 
-        <section className="px-4 py-6 sm:px-6 lg:px-8">
+        <section className="px-4 py-6 sm:px-6 lg:px-7">
           {view === "servers" ? (
             <ServerOverview
               currentUser={currentUser}
@@ -393,7 +425,8 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
           ) : null}
 
           {loading ? (
-            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-6 text-neutral-300">
+            <div className="gp-card flex items-center gap-3 p-6 text-gp-dim">
+              <RefreshCw className="h-4 w-4 animate-spin" />
               Loading panel...
             </div>
           ) : view === "teamspeak" ? (
@@ -423,7 +456,7 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
         </section>
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-4 border-t border-white/10 bg-neutral-950/95 p-2 backdrop-blur lg:hidden">
+      <nav className="fixed bottom-3 left-3 right-3 z-30 grid grid-cols-4 gap-1 rounded-[22px] border border-white/[0.08] bg-[#070b14]/95 p-1.5 shadow-[0_26px_60px_-28px_rgba(0,0,0,1)] backdrop-blur-xl lg:hidden">
         <MobileButton active={view === "servers"} onClick={() => setView("servers")} icon={LayoutDashboard}>
           Servers
         </MobileButton>
@@ -443,14 +476,14 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
       </nav>
 
       {message ? (
-        <div className="fixed bottom-20 right-4 z-50 w-[min(calc(100vw-2rem),380px)] rounded-lg border border-cyan-300/25 bg-[#07111f]/95 p-4 text-sm text-cyan-50 shadow-2xl shadow-black/50 backdrop-blur-xl lg:bottom-5">
+        <div className="gp-toast gp-rise fixed bottom-24 right-4 z-50 w-[min(calc(100vw-2rem),380px)] p-4 text-sm text-white lg:bottom-6 lg:right-6">
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(103,232,249,.8)]" />
+            <span className="gp-dot gp-dot-online mt-1.5" />
             <p className="min-w-0 flex-1 leading-5">{message}</p>
             <button
               type="button"
               onClick={() => setMessage("")}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-300 transition hover:bg-white/10 hover:text-white"
+              className="gp-icon-btn h-7 w-7 shrink-0"
               aria-label="Dismiss message"
             >
               <X className="h-4 w-4" />
@@ -474,44 +507,59 @@ function ServerOverview({
   activePlayerCount: number;
 }) {
   const offlineCount = servers.length - onlineCount;
+  const onlineRatio = servers.length > 0 ? onlineCount / servers.length : 0;
 
   return (
-    <section className="mb-6 grid overflow-hidden rounded-lg border border-white/10 bg-white/[0.06] shadow-2xl shadow-black/25 backdrop-blur-xl lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="bg-[linear-gradient(135deg,rgba(14,165,233,.34),rgba(30,64,175,.2)_45%,rgba(15,23,42,.16))] p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-cyan-100">Intuitive Gamepanel</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+    <section className="mb-6 grid gap-4 lg:grid-cols-3">
+      <div className="gp-card gp-rise p-5 sm:p-6 lg:col-span-2">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="gp-eyebrow">Intuitive Gamepanel</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-[1.7rem]">
               Server Command Center
             </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-200">
+            <p className="mt-2 max-w-xl text-sm leading-6 text-gp-dim">
               Manage assigned game and voice servers, startup arguments, and live service actions from one panel.
             </p>
           </div>
-          <span className="rounded-md border border-white/15 bg-white/10 px-3 py-2 text-sm font-semibold text-white">
-            {currentUser.role}
-          </span>
+          <span className="gp-pill gp-pill-blue">{currentUser.role}</span>
         </div>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <OverviewStat icon={Server} label="Servers" value={servers.length} tone="cyan" />
+        <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <OverviewStat icon={Server} label="Servers" value={servers.length} tone="blue" />
           <OverviewStat icon={Activity} label="Online" value={onlineCount} tone="emerald" />
           <OverviewStat icon={Gauge} label="Offline" value={offlineCount} tone="amber" />
           <OverviewStat icon={Users} label="Active players" value={activePlayerCount} tone="violet" />
         </div>
       </div>
 
-      <aside className="border-t border-white/10 bg-[#071e3f]/80 p-5 sm:p-6 lg:border-l lg:border-t-0">
-        <p className="text-sm font-semibold text-cyan-100">Operations</p>
-        <div className="mt-5 space-y-3">
-          <MiniMetric label="Control mode" value="systemd" />
-          <MiniMetric label="Access" value={currentUser.role === "ADMIN" ? "All servers" : "Assigned only"} />
-          <MiniMetric
-            label="Startup edits"
-            value={currentUser.role === "ADMIN" || currentUser.role === "STARTUP_USER" ? "Full command" : "Arguments only"}
-          />
+      <div className="grid gap-4">
+        <div className="gp-card gp-rise p-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="gp-title">Service health</p>
+            <span className="gp-pill gp-pill-neutral">Live</span>
+          </div>
+          <div className="mt-5 flex items-center gap-5">
+            <Ring value={onlineRatio} label="Online" />
+            <div className="min-w-0 flex-1 space-y-3">
+              <Meter label="Online" value={onlineCount} max={servers.length} tone="emerald" />
+              <Meter label="Offline" value={offlineCount} max={servers.length} tone="amber" />
+            </div>
+          </div>
         </div>
-      </aside>
+
+        <div className="gp-card gp-rise p-5">
+          <p className="gp-title">Operations</p>
+          <div className="mt-4 space-y-2">
+            <MiniMetric label="Control mode" value="systemd" />
+            <MiniMetric label="Access" value={currentUser.role === "ADMIN" ? "All servers" : "Assigned only"} />
+            <MiniMetric
+              label="Startup edits"
+              value={currentUser.role === "ADMIN" || currentUser.role === "STARTUP_USER" ? "Full command" : "Arguments only"}
+            />
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -525,29 +573,31 @@ function OverviewStat({
   icon: typeof Server;
   label: string;
   value: number;
-  tone: "cyan" | "emerald" | "amber" | "violet";
+  tone: "blue" | "emerald" | "amber" | "violet";
 }) {
   const tones = {
-    cyan: "border-cyan-300/20 bg-cyan-300/10 text-cyan-100",
-    emerald: "border-emerald-300/20 bg-emerald-300/10 text-emerald-100",
-    amber: "border-amber-300/20 bg-amber-300/10 text-amber-100",
-    violet: "border-violet-300/20 bg-violet-300/10 text-violet-100",
+    blue: "gp-icon-tile-blue",
+    emerald: "gp-icon-tile-emerald",
+    amber: "gp-icon-tile-amber",
+    violet: "gp-icon-tile-violet",
   };
 
   return (
-    <div className={`rounded-lg border p-4 ${tones[tone]}`}>
-      <Icon className="h-5 w-5" />
-      <p className="mt-4 text-3xl font-semibold">{value}</p>
-      <p className="text-sm text-slate-200">{label}</p>
+    <div className="gp-inset gp-interactive p-4">
+      <span className={`gp-icon-tile h-9 w-9 rounded-xl ${tones[tone]}`}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <p className="mt-4 text-2xl font-semibold tracking-tight text-white">{value}</p>
+      <p className="mt-0.5 truncate text-xs text-gp-dim">{label}</p>
     </div>
   );
 }
 
 function MiniMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between rounded-md border border-white/10 bg-white/10 px-3 py-2">
-      <span className="text-sm text-blue-100">{label}</span>
-      <span className="text-sm font-semibold text-white">{value}</span>
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5">
+      <span className="truncate text-xs text-gp-dim">{label}</span>
+      <span className="truncate text-xs font-semibold text-white">{value}</span>
     </div>
   );
 }
@@ -555,12 +605,10 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
 function Brand({ collapsed = false }: { collapsed?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-300 text-neutral-950">
-        <Shield className="h-5 w-5" />
-      </div>
-      <div className={collapsed ? "hidden" : ""}>
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-cyan-200">Intuitive</p>
-        <p className="text-lg font-semibold">Gamepanel</p>
+      <BrandLogo size="md" />
+      <div className={collapsed ? "hidden" : "min-w-0"}>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-200/70">Intuitive</p>
+        <p className="truncate text-[15px] font-semibold tracking-tight text-white">Gamepanel</p>
       </div>
     </div>
   );
@@ -582,13 +630,13 @@ function NavButton({
   return (
     <button
       onClick={onClick}
-      className={`flex h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-medium transition ${
-        active ? "bg-cyan-300 text-neutral-950" : "text-neutral-300 hover:bg-white/5"
+      className={`gp-nav-item ${collapsed ? "" : "w-full justify-start gap-3 px-3"} ${
+        active ? "gp-nav-item-active" : ""
       }`}
       title={collapsed ? String(children) : undefined}
     >
-      <Icon className="h-4 w-4" />
-      {collapsed ? null : children}
+      <Icon className="h-4 w-4 shrink-0" />
+      {collapsed ? null : <span className="truncate text-[13px] font-medium">{children}</span>}
     </button>
   );
 }
@@ -607,8 +655,10 @@ function MobileButton({
   return (
     <button
       onClick={onClick}
-      className={`flex h-14 flex-col items-center justify-center gap-1 rounded-md text-xs font-medium ${
-        active ? "bg-cyan-300 text-neutral-950" : "text-neutral-300"
+      className={`flex h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-medium transition ${
+        active
+          ? "bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-[0_12px_28px_-14px_rgba(59,130,246,.95)]"
+          : "text-gp-dim"
       }`}
     >
       <Icon className="h-4 w-4" />
@@ -619,10 +669,128 @@ function MobileButton({
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2">
-      <p className="text-xs text-neutral-400">{label}</p>
-      <p className="text-lg font-semibold">{value}</p>
+    <span className="gp-pill gp-pill-neutral">
+      <span className="text-gp-mute">{label}</span>
+      <span className="font-semibold text-white">{value}</span>
+    </span>
+  );
+}
+
+function Ring({ value, label }: { value: number; label: string }) {
+  const gradientId = `gp-ring-${useId().replace(/:/g, "")}`;
+  const size = 108;
+  const stroke = 10;
+  const clamped = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
+        <defs>
+          <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#22d3ee" />
+            <stop offset="55%" stopColor="#3b82f6" />
+            <stop offset="100%" stopColor="#8b5cf6" />
+          </linearGradient>
+        </defs>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="rgba(255,255,255,.09)"
+          strokeWidth={stroke}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={`url(#${gradientId})`}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - clamped)}
+          style={{ transition: "stroke-dashoffset .7s cubic-bezier(.22,.68,0,1)" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-semibold tracking-tight text-white">
+          {Math.round(clamped * 100)}%
+        </span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gp-mute">{label}</span>
+      </div>
     </div>
+  );
+}
+
+function Meter({
+  label,
+  value,
+  max,
+  tone = "blue",
+}: {
+  label: string;
+  value: number;
+  max: number;
+  tone?: "blue" | "emerald" | "amber";
+}) {
+  const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+  const fills = {
+    blue: "linear-gradient(90deg,#22d3ee,#3b82f6)",
+    emerald: "linear-gradient(90deg,#34d399,#10b981)",
+    amber: "linear-gradient(90deg,#fbbf24,#fb923c)",
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 text-[11px]">
+        <span className="truncate text-gp-mute">{label}</span>
+        <span className="font-semibold text-white">{value}</span>
+      </div>
+      <div className="gp-meter mt-1.5">
+        <div className="gp-meter-fill" style={{ width: `${percent}%`, backgroundImage: fills[tone] }} />
+      </div>
+    </div>
+  );
+}
+
+function Greeting({ name }: { name: string }) {
+  const [label, setLabel] = useState("Welcome back");
+
+  useEffect(() => {
+    function update() {
+      const hour = new Date().getHours();
+      setLabel(hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening");
+    }
+
+    update();
+    const interval = window.setInterval(update, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  return (
+    <>
+      {label}, <span className="font-medium text-white/90">{name}</span>
+    </>
+  );
+}
+
+function LiveClock() {
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    const interval = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  return (
+    <span className="gp-pill gp-pill-neutral">
+      <Clock className="h-3.5 w-3.5" />
+      {now ? now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--:--"}
+    </span>
   );
 }
 
@@ -732,11 +900,11 @@ function ServersPanel({
     <div className="space-y-6">
       {isAdmin ? <ServerForm users={users} nodes={nodes} reload={reload} setMessage={setMessage} /> : null}
       {canUpdateCodbaseLinks ? (
-        <section className="rounded-lg border border-cyan-300/15 bg-[#07111f]/70 p-4">
+        <section className="gp-card gp-rise p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-white">CoDBase linked files</p>
-              <p className="mt-1 text-sm text-neutral-400">
+            <div className="min-w-0">
+              <p className="gp-title">CoDBase linked files</p>
+              <p className="mt-1 text-sm text-gp-dim">
                 Sync new files from CoDBase #1 into match servers without replacing per-server configs.
               </p>
             </div>
@@ -744,7 +912,7 @@ function ServersPanel({
               type="button"
               onClick={updateCodbaseLinks}
               disabled={updatingCodbaseLinks}
-              className="flex h-11 items-center justify-center gap-2 rounded-md border border-cyan-300/25 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10 disabled:cursor-wait disabled:opacity-60"
+              className="gp-btn gp-btn-ghost"
             >
               <RefreshCw className={`h-4 w-4 ${updatingCodbaseLinks ? "animate-spin" : ""}`} />
               Update CoDBase links
@@ -752,13 +920,13 @@ function ServersPanel({
           </div>
         </section>
       ) : null}
-      <div className="overflow-hidden rounded-lg border border-white/10 bg-[#09111d]/70 shadow-2xl shadow-black/25 backdrop-blur-xl">
-        <div className="hidden grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.7fr)_minmax(230px,0.9fr)] border-b border-white/10 bg-white/[0.07] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-300 lg:grid">
-          <span>Server name</span>
-          <span>Address</span>
-          <span className="text-right">Operations</span>
+      <div className="gp-card gp-rise overflow-hidden">
+        <div className="hidden grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.7fr)_minmax(230px,0.9fr)] items-center border-b border-white/[0.08] bg-white/[0.03] px-4 py-3 lg:grid">
+          <span className="gp-eyebrow">Server name</span>
+          <span className="gp-eyebrow">Address</span>
+          <span className="gp-eyebrow text-right">Operations</span>
         </div>
-        <div className="divide-y divide-white/10">
+        <div className="divide-y divide-white/[0.06]">
           {groupedServers.map((group) => (
             <GameServerGroup
               key={group.gameKey}
@@ -788,9 +956,7 @@ function ServersPanel({
         </div>
       </div>
       {servers.length === 0 ? (
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-6 text-neutral-300">
-          No servers are assigned to this account.
-        </div>
+        <div className="gp-card p-6 text-gp-dim">No servers are assigned to this account.</div>
       ) : null}
     </div>
   );
@@ -833,7 +999,7 @@ function GameServerGroup({
 }) {
   return (
     <section
-      className={`bg-[#081321]/40 transition ${dragging ? "opacity-60" : ""}`}
+      className={`transition ${dragging ? "opacity-60" : ""}`}
       onDragOver={(event) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
@@ -844,7 +1010,7 @@ function GameServerGroup({
       }}
     >
       <div
-        className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 border-b border-white/10 bg-[linear-gradient(90deg,rgba(34,211,238,.08),rgba(255,255,255,.035),rgba(34,211,238,.08))] px-4 py-4"
+        className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 border-b border-white/[0.08] bg-white/[0.035] px-4 py-4"
         draggable
         onDragStart={(event) => {
           event.dataTransfer.effectAllowed = "move";
@@ -853,7 +1019,7 @@ function GameServerGroup({
         onDragEnd={onGroupDragEnd}
       >
         <span
-          className="hidden h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-md border border-white/10 text-neutral-500 transition hover:bg-white/5 hover:text-neutral-200 active:cursor-grabbing lg:flex"
+          className="gp-icon-btn hidden cursor-grab lg:flex active:cursor-grabbing"
           title="Drag game group to reorder"
         >
           <GripVertical className="h-4 w-4" />
@@ -864,10 +1030,10 @@ function GameServerGroup({
           className="flex min-w-0 items-center justify-center gap-4 text-center"
         >
           <div className="min-w-0">
-            <h2 className="truncate text-lg font-semibold uppercase tracking-wide text-cyan-100 sm:text-xl">
+            <h2 className="truncate text-[13px] font-semibold uppercase tracking-[0.18em] text-blue-100">
               {group.label}
             </h2>
-            <p className="mt-1 text-sm text-neutral-500">
+            <p className="mt-1 text-xs text-gp-mute">
               {group.servers.length} {group.servers.length === 1 ? "server" : "servers"}
             </p>
           </div>
@@ -875,14 +1041,14 @@ function GameServerGroup({
         <button
           type="button"
           onClick={onToggle}
-          className="flex h-9 w-9 items-center justify-center justify-self-end rounded-md text-neutral-400 transition hover:bg-white/5 hover:text-white"
+          className="gp-icon-btn justify-self-end"
           aria-label={collapsed ? `Expand ${group.label}` : `Collapse ${group.label}`}
         >
           <ChevronDown className={`h-5 w-5 transition ${collapsed ? "-rotate-90" : ""}`} />
         </button>
       </div>
       {!collapsed ? (
-        <div className="divide-y divide-white/10">
+        <div className="divide-y divide-white/[0.06]">
           {group.servers.map((server) => (
             <section
               key={server.id}
@@ -986,9 +1152,7 @@ function ServerRow({
 
   return (
     <details
-      className={`group bg-[#0d1624]/45 transition open:bg-[linear-gradient(135deg,rgba(15,23,42,.88),rgba(8,47,73,.55))] ${
-        dragging ? "opacity-50" : ""
-      }`}
+      className={`group transition open:bg-white/[0.02] ${dragging ? "opacity-50" : ""}`}
       draggable={draggable}
       onDragStart={(event) => {
         event.stopPropagation();
@@ -1013,49 +1177,37 @@ function ServerRow({
         }
       }}
     >
-      <summary className="grid cursor-pointer gap-3 px-4 py-3 transition hover:bg-white/[0.045] lg:grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.7fr)_minmax(230px,0.9fr)] lg:items-center">
+      <summary className="grid list-none cursor-pointer gap-3 px-4 py-3.5 transition hover:bg-white/[0.035] [&::-webkit-details-marker]:hidden lg:grid-cols-[minmax(220px,1.4fr)_minmax(120px,0.7fr)_minmax(230px,0.9fr)] lg:items-center">
         <div className="flex min-w-0 items-center gap-3">
           {draggable ? (
-            <span
-              className="hidden h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-md border border-white/10 text-neutral-500 transition hover:bg-white/5 hover:text-neutral-200 active:cursor-grabbing lg:flex"
-              title="Drag to reorder"
-            >
+            <span className="gp-icon-btn hidden cursor-grab lg:flex active:cursor-grabbing" title="Drag to reorder">
               <GripVertical className="h-4 w-4" />
             </span>
           ) : null}
-          <ChevronDown className="h-4 w-4 shrink-0 text-neutral-500 transition group-open:rotate-180" />
-          <span
-            className={`h-3.5 w-3.5 shrink-0 rounded-full ring-4 ${
-              server.status === "ONLINE"
-                ? "bg-emerald-400 ring-emerald-400/15"
-                : "bg-neutral-500 ring-neutral-500/15"
-            }`}
-          />
+          <ChevronDown className="h-4 w-4 shrink-0 text-gp-mute transition group-open:rotate-180" />
+          <span className={`gp-dot ${server.status === "ONLINE" ? "gp-dot-online" : "gp-dot-idle"}`} />
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h2 className="truncate text-base font-semibold text-white">{server.name}</h2>
-              <span className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${statusStyle[server.status]}`}>
-                {server.status}
-              </span>
+              <h2 className="truncate text-[15px] font-semibold text-white">{server.name}</h2>
+              <span className={`gp-pill ${statusStyle[server.status]}`}>{server.status}</span>
               {playerSummaryLabel ? (
-                <span className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-0.5 font-mono text-sm font-semibold text-neutral-100">
+                <span className="gp-pill gp-pill-neutral font-mono">
+                  <Users className="h-3 w-3" />
                   {playerSummaryLabel}
                 </span>
               ) : null}
               {versionLabel ? (
-                <span className="text-xs font-semibold uppercase tracking-wide text-cyan-100/70">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-200/70">
                   {versionLabel}
                 </span>
               ) : null}
             </div>
-            <p className="mt-1 truncate text-sm text-neutral-400 lg:hidden">{server.description}</p>
+            <p className="mt-1 truncate text-xs text-gp-mute lg:hidden">{server.description}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 pl-7 lg:pl-0">
-          <span className="rounded-md border border-cyan-300/20 bg-cyan-400/15 px-2.5 py-1 font-mono text-sm font-medium text-cyan-100 shadow-lg shadow-cyan-950/20">
-            {address}
-          </span>
+          <span className="gp-pill gp-pill-cyan font-mono">{address}</span>
         </div>
 
         <div className={`grid gap-2 pl-7 lg:pl-0 ${isOffline ? "grid-cols-1" : "grid-cols-2"}`}>
@@ -1091,17 +1243,17 @@ function ServerRow({
         </div>
       </summary>
 
-      <div className="grid gap-5 border-t border-white/10 bg-black/10 px-4 py-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)]">
+      <div className="grid gap-5 border-t border-white/[0.08] bg-black/20 px-4 py-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)]">
         <div className="space-y-4">
-          <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Description</p>
-            <p className="mt-1 text-sm leading-6 text-neutral-300">{server.description}</p>
+          <div className="gp-inset p-4">
+            <p className="gp-eyebrow">Description</p>
+            <p className="mt-1.5 text-sm leading-6 text-gp-dim">{server.description}</p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             <ActionButton onClick={refreshStatus} disabled={Boolean(busy)} icon={RefreshCw}>
               Refresh status
             </ActionButton>
-            <span className="rounded-md border border-white/10 bg-[#0a1220] px-3 py-2 text-sm text-neutral-400">
+            <span className="gp-inset flex items-center px-3 py-2 text-xs text-gp-dim">
               {isAdmin && server.systemdServiceName ? server.systemdServiceName : "Assigned server"}
             </span>
           </div>
@@ -1144,23 +1296,17 @@ function PlayersPanel({
   const onlineLabel = isVoice ? "Clients online" : "Players online";
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#07111f]/70 p-4">
+    <section className="gp-card p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{onlineLabel}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-3">
-            <p className="text-2xl font-semibold text-white">
+        <div className="min-w-0">
+          <p className="gp-eyebrow">{onlineLabel}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <p className="text-2xl font-semibold tracking-tight text-white">
               {players ? `${players.playerCount}${maxClients}` : loading ? "Loading..." : "0"}
             </p>
-            {players?.mapName ? (
-              <span className="rounded-md border border-cyan-300/20 bg-cyan-400/10 px-2 py-1 text-xs font-medium text-cyan-100">
-                {players.mapName}
-              </span>
-            ) : null}
+            {players?.mapName ? <span className="gp-pill gp-pill-cyan">{players.mapName}</span> : null}
             {players?.gameType ? (
-              <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-xs font-medium uppercase text-neutral-300">
-                {players.gameType}
-              </span>
+              <span className="gp-pill gp-pill-neutral uppercase">{players.gameType}</span>
             ) : null}
           </div>
         </div>
@@ -1168,37 +1314,43 @@ function PlayersPanel({
           type="button"
           onClick={() => void onRefresh()}
           disabled={loading}
-          className="flex h-9 items-center gap-2 rounded-md border border-white/10 px-3 text-sm font-medium text-neutral-200 transition hover:border-cyan-300/40 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-60"
+          className="gp-btn gp-btn-ghost h-9"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           {isVoice ? "Refresh clients" : "Refresh players"}
         </button>
       </div>
 
+      {players && players.maxClients ? (
+        <div className="mt-4">
+          <Meter label="Occupancy" value={players.playerCount} max={players.maxClients} />
+        </div>
+      ) : null}
+
       {players?.hostname ? (
-        <p className="mt-3 truncate text-sm text-neutral-400">{stripCodColors(players.hostname)}</p>
+        <p className="mt-3 truncate text-xs text-gp-mute">{stripCodColors(players.hostname)}</p>
       ) : null}
 
       {isVoice ? <TeamSpeakExternalViewer /> : null}
 
-      {error ? <p className="mt-3 text-sm text-red-200">{error}</p> : null}
+      {error ? <p className="gp-pill gp-pill-red mt-3 w-full justify-center py-2">{error}</p> : null}
 
       {!isVoice && players && players.players.length > 0 ? (
-        <div className="mt-4 overflow-hidden rounded-md border border-white/10">
-          <div className="grid grid-cols-[1fr_72px_72px] bg-white/[0.06] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-            <span>Name</span>
-            <span className="text-right">Score</span>
-            <span className="text-right">Ping</span>
+        <div className="gp-inset mt-4 overflow-hidden">
+          <div className="grid grid-cols-[1fr_72px_72px] border-b border-white/[0.07] bg-white/[0.03] px-3 py-2">
+            <span className="gp-eyebrow">Name</span>
+            <span className="gp-eyebrow text-right">Score</span>
+            <span className="gp-eyebrow text-right">Ping</span>
           </div>
-          <div className="max-h-72 divide-y divide-white/10 overflow-y-auto">
+          <div className="gp-scroll max-h-72 divide-y divide-white/[0.05] overflow-y-auto">
             {players.players.map((player, index) => (
               <div
                 key={`${player.name}-${index}`}
-                className="grid grid-cols-[1fr_72px_72px] px-3 py-2 text-sm text-neutral-200"
+                className="grid grid-cols-[1fr_72px_72px] px-3 py-2 text-sm text-neutral-200 transition hover:bg-white/[0.03]"
               >
                 <span className="truncate">{stripCodColors(player.name)}</span>
-                <span className="text-right font-mono text-neutral-300">{player.score}</span>
-                <span className="text-right font-mono text-neutral-300">{player.ping}</span>
+                <span className="text-right font-mono text-xs text-gp-dim">{player.score}</span>
+                <span className="text-right font-mono text-xs text-gp-dim">{player.ping}</span>
               </div>
             ))}
           </div>
@@ -1206,9 +1358,7 @@ function PlayersPanel({
       ) : null}
 
       {players && players.players.length === 0 && !isVoice ? (
-        <p className="mt-4 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-400">
-          No players online right now.
-        </p>
+        <p className="gp-inset mt-4 px-3 py-2 text-sm text-gp-dim">No players online right now.</p>
       ) : null}
     </section>
   );
@@ -1238,7 +1388,7 @@ function TeamSpeakExternalViewer() {
   }, []);
 
   return (
-    <div className="mt-4 rounded-md border border-white/10 bg-white/[0.03] p-3">
+    <div className="gp-inset mt-4 p-3">
       <div id="ts3viewer_1131191" />
     </div>
   );
@@ -1334,13 +1484,16 @@ function ServerConsole({
   }
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#07111f]/70">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Live console</p>
-          <p className="mt-1 text-sm text-neutral-400">
-            {connected ? "Streaming systemd logs" : "Last 200 lines when connected"}
-          </p>
+    <section className="gp-card overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3">
+        <div className="flex items-center gap-3">
+          <span className={`gp-dot ${connected ? "gp-dot-online" : "gp-dot-idle"}`} />
+          <div>
+            <p className="gp-title">Live console</p>
+            <p className="mt-0.5 text-xs text-gp-mute">
+              {connected ? "Streaming systemd logs" : "Last 200 lines when connected"}
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -1350,19 +1503,11 @@ function ServerConsole({
               setError("");
               setConnected((current) => !current);
             }}
-            className={`h-9 rounded-md border px-3 text-sm font-medium transition ${
-              connected
-                ? "border-red-400/30 text-red-100 hover:bg-red-400/10"
-                : "border-cyan-300/30 text-cyan-100 hover:bg-cyan-300/10"
-            }`}
+            className={`gp-btn h-9 ${connected ? "gp-btn-danger" : "gp-btn-success"}`}
           >
             {connected ? "Disconnect" : "Connect"}
           </button>
-          <button
-            type="button"
-            onClick={() => setLines([])}
-            className="h-9 rounded-md border border-white/10 px-3 text-sm font-medium text-neutral-300 transition hover:bg-white/5"
-          >
+          <button type="button" onClick={() => setLines([])} className="gp-btn gp-btn-ghost h-9">
             Clear
           </button>
         </div>
@@ -1370,7 +1515,7 @@ function ServerConsole({
 
       <div
         ref={consoleRef}
-        className="max-h-80 min-h-48 overflow-y-auto bg-black/30 p-3 font-mono text-xs leading-5 text-neutral-300"
+        className="gp-scroll max-h-80 min-h-48 overflow-y-auto bg-black/40 p-3 font-mono text-xs leading-5 text-neutral-300"
       >
         {lines.length > 0 ? (
           lines.map((line, index) => (
@@ -1379,32 +1524,28 @@ function ServerConsole({
             </p>
           ))
         ) : (
-          <p className="text-neutral-500">Connect to view live service logs.</p>
+          <p className="text-gp-mute">Connect to view live service logs.</p>
         )}
       </div>
 
-      {error ? <p className="border-t border-white/10 px-4 py-2 text-sm text-red-200">{error}</p> : null}
+      {error ? <p className="border-t border-white/[0.08] px-4 py-2 text-xs text-red-300">{error}</p> : null}
 
       {!isVoiceServer ? (
-        <form onSubmit={sendRconCommand} className="flex flex-col gap-2 border-t border-white/10 p-3 sm:flex-row">
+        <form onSubmit={sendRconCommand} className="flex flex-col gap-2 border-t border-white/[0.08] p-3 sm:flex-row">
           <input
             value={command}
             onChange={(event) => setCommand(event.target.value)}
             maxLength={200}
-            className="min-h-10 flex-1 rounded-md border border-white/10 bg-neutral-900 px-3 font-mono text-sm text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
+            className="gp-input flex-1 font-mono"
             placeholder="RCON command, for example: status"
           />
-          <button
-            type="submit"
-            disabled={rconBusy || !command.trim()}
-            className="flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          <button type="submit" disabled={rconBusy || !command.trim()} className="gp-btn gp-btn-primary">
             <Send className="h-4 w-4" />
             Send
           </button>
         </form>
       ) : (
-        <p className="border-t border-white/10 px-4 py-3 text-sm text-neutral-400">
+        <p className="border-t border-white/[0.08] px-4 py-3 text-sm text-gp-dim">
           TeamSpeak commands are managed from the TeamSpeak page.
         </p>
       )}
@@ -1517,11 +1658,11 @@ function ServerConfigEditor({
   }
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#07111f]/90 shadow-xl shadow-black/20">
-      <div className="border-b border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-cyan-100">
-        Startup configuration
+    <section className="gp-card overflow-hidden">
+      <div className="border-b border-white/[0.08] bg-white/[0.03] px-4 py-3">
+        <p className="gp-title">Startup configuration</p>
       </div>
-      <form onSubmit={submit} className="space-y-3 p-3">
+      <form onSubmit={submit} className="space-y-3 p-4">
         <Input name="name" defaultValue={server.name} placeholder="Server name" />
         <Input name="description" defaultValue={server.description} placeholder="Description" />
         {isAdmin ? (
@@ -1535,95 +1676,77 @@ function ServerConfigEditor({
         ) : null}
         {canEditFullStartup && !isVoiceServer ? (
           <label className="block">
-            <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-              ExecStart
-            </span>
+            <span className="gp-eyebrow mb-2 block">ExecStart</span>
             <textarea
               name="execStart"
               required
               rows={4}
               defaultValue={server.execStart}
-              className="w-full resize-y rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
+              className="gp-textarea font-mono text-xs"
               placeholder="/opt/game-servers/server-1/server_binary +set net_port 28960"
             />
           </label>
         ) : !canEditFullStartup && !isVoiceServer ? (
           <>
             <label className="block">
-              <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-                +set fs_game
-              </span>
+              <span className="gp-eyebrow mb-2 block">+set fs_game</span>
               <input
                 name="fsGame"
                 defaultValue={server.startupSettings.fsGame}
-                className="w-full resize-y rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
+                className="gp-input font-mono text-xs"
                 placeholder=""
               />
             </label>
             <label className="block">
-              <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-                +set sv_punkbuster
-              </span>
+              <span className="gp-eyebrow mb-2 block">+set sv_punkbuster</span>
               <select
                 name="punkbuster"
                 defaultValue={server.startupSettings.punkbuster ? "true" : "false"}
-                className="h-11 w-full rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none ring-cyan-400/20 transition focus:border-cyan-300 focus:ring-4"
+                className="gp-select"
               >
                 <option value="false">Disabled</option>
                 <option value="true">Enabled</option>
               </select>
             </label>
             <label className="block">
-              <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-                +exec
-              </span>
+              <span className="gp-eyebrow mb-2 block">+exec</span>
               <input
                 name="configFile"
                 defaultValue={server.startupSettings.configFile}
-                className="w-full rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
+                className="gp-input font-mono text-xs"
                 placeholder="server_config.cfg"
               />
             </label>
             <label className="block">
-              <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-                rconpassword
-              </span>
+              <span className="gp-eyebrow mb-2 block">rconpassword</span>
               <input
                 name="rconPassword"
                 type="password"
                 defaultValue={server.startupSettings.rconPassword}
-                className="w-full rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
+                className="gp-input font-mono text-xs"
                 placeholder="RCON password"
               />
             </label>
             <label className="block">
-              <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-                Extra parameters
-              </span>
+              <span className="gp-eyebrow mb-2 block">Extra parameters</span>
               <textarea
                 name="extraParameters"
                 rows={3}
                 defaultValue={server.startupSettings.extraParameters}
-                className="w-full resize-y rounded-md border border-white/10 bg-neutral-900 px-3 py-2 font-mono text-xs leading-5 text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
+                className="gp-textarea font-mono text-xs"
                 placeholder=""
               />
             </label>
           </>
         ) : isVoiceServer ? (
-          <p className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-400">
+          <p className="gp-inset px-3 py-2 text-sm text-gp-dim">
             TeamSpeak servers do not use editable game startup arguments in this panel.
           </p>
         ) : null}
-        <div className="flex flex-wrap gap-2">
-          <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
-            Save configuration
-          </button>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <button className="gp-btn gp-btn-primary">Save configuration</button>
           {isAdmin ? (
-            <button
-              type="button"
-              onClick={deleteServer}
-              className="flex h-10 items-center gap-2 rounded-md border border-red-400/30 px-4 text-sm font-semibold text-red-200 transition hover:bg-red-400/10"
-            >
+            <button type="button" onClick={deleteServer} className="gp-btn gp-btn-danger">
               <Trash2 className="h-4 w-4" />
               Delete server
             </button>
@@ -1632,11 +1755,7 @@ function ServerConfigEditor({
             <button
               type="button"
               onClick={isCod16 ? downgradeCod16 : upgradeCod16}
-              className={`h-10 rounded-md border px-4 text-sm font-semibold transition ${
-                isCod16
-                  ? "border-amber-400/35 text-amber-100 hover:bg-amber-400/10"
-                  : "border-emerald-400/30 text-emerald-100 hover:bg-emerald-400/10"
-              }`}
+              className={`gp-btn ${isCod16 ? "gp-btn-warn" : "gp-btn-success"}`}
             >
               {isCod16 ? "Downgrade to v1.5" : "Upgrade to v1.6"}
             </button>
@@ -1663,10 +1782,10 @@ function ActionButton({
   children: React.ReactNode;
 }) {
   const tones = {
-    neutral: "border-white/10 bg-[#0b1625] text-neutral-200 hover:border-cyan-300/40 hover:bg-cyan-300/10",
-    start: "border-emerald-400/30 bg-emerald-500/15 text-emerald-100 hover:border-emerald-300/60 hover:bg-emerald-500/25",
-    restart: "border-amber-400/35 bg-amber-500/15 text-amber-100 hover:border-amber-300/70 hover:bg-amber-500/25",
-    stop: "border-red-400/35 bg-red-500/15 text-red-100 hover:border-red-300/70 hover:bg-red-500/25",
+    neutral: "gp-btn-ghost",
+    start: "gp-btn-success",
+    restart: "gp-btn-warn",
+    stop: "gp-btn-danger",
   };
 
   return (
@@ -1674,7 +1793,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex h-11 w-full min-w-0 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium shadow-lg shadow-black/10 transition disabled:cursor-not-allowed disabled:opacity-60 ${tones[tone]} ${className}`}
+      className={`gp-btn w-full min-w-0 ${tones[tone]} ${className}`}
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span className="whitespace-nowrap">{children}</span>
@@ -1794,24 +1913,20 @@ function ServerForm({
   }
 
   return (
-    <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+    <section className="gp-card gp-rise p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-white">Servers</p>
-          <p className="text-sm text-neutral-400">Create a new game or voice service when needed.</p>
+        <div className="min-w-0">
+          <p className="gp-title">Servers</p>
+          <p className="mt-1 text-sm text-gp-dim">Create a new game or voice service when needed.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200"
-        >
+        <button type="button" onClick={() => setOpen((value) => !value)} className="gp-btn gp-btn-primary">
           <Plus className="h-4 w-4" />
           Add server
         </button>
       </div>
 
       {open ? (
-        <form onSubmit={submit} className="mt-4 border-t border-white/10 pt-4">
+        <form onSubmit={submit} className="mt-4 border-t border-white/[0.08] pt-4">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px_180px_180px_120px]">
             <Input name="name" placeholder="Server name" />
             <Input name="description" placeholder="Description" />
@@ -1819,7 +1934,7 @@ function ServerForm({
               name="nodeId"
               required
               defaultValue={nodes.find((node) => node.isLocal)?.id ?? nodes[0]?.id ?? ""}
-              className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none ring-cyan-400/20 transition focus:border-cyan-300 focus:ring-4"
+              className="gp-select"
             >
               <option value="">Machine</option>
               {nodes.map((node) => (
@@ -1828,11 +1943,7 @@ function ServerForm({
                 </option>
               ))}
             </select>
-            <select
-              name="ownerUserId"
-              required
-              className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none ring-cyan-400/20 transition focus:border-cyan-300 focus:ring-4"
-            >
+            <select name="ownerUserId" required className="gp-select">
               <option value="">User</option>
               {ownerUsers.map((user) => (
                 <option key={user.id} value={user.id}>
@@ -1844,7 +1955,7 @@ function ServerForm({
               name="game"
               value={selectedGame}
               onChange={(event) => setSelectedGame(event.target.value as typeof selectedGame)}
-              className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none ring-cyan-400/20 transition focus:border-cyan-300 focus:ring-4"
+              className="gp-select"
             >
               {SERVER_GAME_OPTIONS.map((game) => (
                 <option key={game.value} value={game.value}>
@@ -1855,16 +1966,14 @@ function ServerForm({
             <Input name="port" type="number" placeholder="28960" />
           </div>
           {ownerUsers.length === 0 ? (
-            <p className="mt-3 rounded-md border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
+            <p className="gp-pill gp-pill-amber mt-3 w-full justify-center py-2">
               Create or edit a user with an SFTP username before adding servers.
             </p>
           ) : null}
           <div className={`mt-5 grid gap-4 ${isTeamspeak ? "sm:grid-cols-1 lg:max-w-xs" : "sm:grid-cols-2 lg:max-w-xl"}`}>
             {!isTeamspeak ? (
               <label className="block">
-                <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-                  Max clients
-                </span>
+                <span className="gp-eyebrow mb-2 block">Max clients</span>
                 <Input name="maxClients" type="number" placeholder="12" defaultValue={12} />
               </label>
             ) : (
@@ -1872,9 +1981,7 @@ function ServerForm({
             )}
             {!isTeamspeak ? (
               <label className="block">
-                <span className="mb-2 block text-xs font-medium uppercase tracking-wide text-neutral-500">
-                  Binary
-                </span>
+                <span className="gp-eyebrow mb-2 block">Binary</span>
                 <Input name="binaryName" placeholder={selectedGameOption.binary} defaultValue={selectedGameOption.binary} key={selectedGame} />
               </label>
             ) : (
@@ -1882,20 +1989,16 @@ function ServerForm({
             )}
           </div>
           {isTeamspeak ? (
-            <p className="mt-3 text-sm text-neutral-400">
+            <p className="mt-3 text-sm text-gp-dim">
               TeamSpeak uses the bundled start script automatically, so no startup binary is needed here.
             </p>
           ) : null}
           <div className="mt-5 flex flex-wrap gap-2">
-            <button className="flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+            <button className="gp-btn gp-btn-primary">
               <Plus className="h-4 w-4" />
               Create server
             </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="h-10 rounded-md border border-white/10 px-4 text-sm font-semibold text-neutral-300 transition hover:bg-white/5"
-            >
+            <button type="button" onClick={() => setOpen(false)} className="gp-btn gp-btn-ghost">
               Cancel
             </button>
           </div>
@@ -1934,7 +2037,7 @@ function TeamSpeakPanel({
         ))}
       </div>
       {servers.length === 0 ? (
-        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-6 text-neutral-300">
+        <div className="gp-card p-6 text-gp-dim">
           No TeamSpeak servers are assigned to this account.
         </div>
       ) : null}
@@ -1985,24 +2088,20 @@ function TeamSpeakForm({
   }
 
   return (
-    <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+    <section className="gp-card gp-rise p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-white">TeamSpeak servers</p>
-          <p className="text-sm text-neutral-400">Connect TeamSpeak ServerQuery API keys and assign access.</p>
+        <div className="min-w-0">
+          <p className="gp-title">TeamSpeak servers</p>
+          <p className="mt-1 text-sm text-gp-dim">Connect TeamSpeak ServerQuery API keys and assign access.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200"
-        >
+        <button type="button" onClick={() => setOpen((value) => !value)} className="gp-btn gp-btn-primary">
           <Plus className="h-4 w-4" />
           Add TeamSpeak
         </button>
       </div>
 
       {open ? (
-        <form onSubmit={submit} className="mt-4 space-y-4 border-t border-white/10 pt-4">
+        <form onSubmit={submit} className="mt-4 space-y-4 border-t border-white/[0.08] pt-4">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_160px_160px]">
             <Input name="name" placeholder="Display name" />
             <Input name="host" placeholder="127.0.0.1 or public IP" />
@@ -2015,27 +2114,23 @@ function TeamSpeakForm({
             <Input name="queryUsername" placeholder="Query login, e.g. serveradmin" required={false} />
             <Input name="queryPassword" type="password" placeholder="Query password optional" required={false} />
           </div>
-          <div className="rounded-lg border border-white/10 bg-[#07111f]/70 p-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Assign users</p>
+          <div className="gp-inset p-3">
+            <p className="gp-eyebrow mb-2">Assign users</p>
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {users.map((user) => (
-                <label key={user.id} className="flex min-h-10 items-center gap-2 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-neutral-200">
-                  <input type="checkbox" name="assignedUserIds" value={user.id} className="h-4 w-4 accent-cyan-300" />
+                <label key={user.id} className="gp-check">
+                  <input type="checkbox" name="assignedUserIds" value={user.id} />
                   <span className="truncate">{user.name}</span>
                 </label>
               ))}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button className="flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+            <button className="gp-btn gp-btn-primary">
               <Plus className="h-4 w-4" />
               Create
             </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="h-10 rounded-md border border-white/10 px-4 text-sm font-semibold text-neutral-300 transition hover:bg-white/5"
-            >
+            <button type="button" onClick={() => setOpen(false)} className="gp-btn gp-btn-ghost">
               Cancel
             </button>
           </div>
@@ -2200,140 +2295,132 @@ function TeamSpeakCard({
   }
 
   return (
-    <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+    <section className="gp-card p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-lg font-semibold text-white">{server.name}</p>
-          <p className="mt-1 text-sm text-neutral-400">{server.description || `${server.host}:${server.voicePort}`}</p>
+        <div className="min-w-0">
+          <p className="text-base font-semibold tracking-tight text-white">{server.name}</p>
+          <p className="mt-1 text-sm text-gp-dim">{server.description || `${server.host}:${server.voicePort}`}</p>
         </div>
-        <button
-          type="button"
-          onClick={loadLive}
-          disabled={loading}
-          className="flex h-10 items-center gap-2 rounded-md border border-cyan-300/25 px-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/10 disabled:opacity-60"
-        >
-          <RefreshCw className="h-4 w-4" />
+        <button type="button" onClick={loadLive} disabled={loading} className="gp-btn gp-btn-ghost h-9">
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           Refresh
         </button>
       </div>
 
       {live ? (
-        <div className="mt-4 rounded-lg border border-white/10 bg-[#07111f]/70 p-3">
+        <div className="gp-inset mt-4 p-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-white">{live.info.virtualserverName}</p>
-              <p className="mt-1 text-xs text-neutral-500">{live.info.status} · uptime {Math.floor(live.info.uptime / 60)} min</p>
+              <p className="mt-1 text-xs text-gp-mute">
+                {live.info.status} · uptime {Math.floor(live.info.uptime / 60)} min
+              </p>
             </div>
-            <span className="rounded-md border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-sm font-semibold text-emerald-100">
+            <span className="gp-pill gp-pill-emerald">
               {live.info.clientCount}/{live.info.maxClients}
             </span>
           </div>
           <div className="mt-3 grid gap-2">
             {live.clients.map((client) => (
-              <div key={client.id} className="grid gap-2 rounded-md border border-white/10 bg-neutral-900 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <div
+                key={client.id}
+                className="grid gap-2 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+              >
                 <div className="min-w-0">
                   <span className="truncate text-neutral-100">{client.nickname}</span>
-                  <span className="ml-2 text-xs text-neutral-500">DB {client.databaseId}</span>
+                  <span className="ml-2 text-xs text-gp-mute">DB {client.databaseId}</span>
                 </div>
               </div>
             ))}
-            {live.clients.length === 0 ? <p className="text-sm text-neutral-500">No clients online.</p> : null}
+            {live.clients.length === 0 ? <p className="text-sm text-gp-mute">No clients online.</p> : null}
           </div>
         </div>
       ) : null}
-      {error ? <p className="mt-3 text-sm text-red-200">{error}</p> : null}
+      {error ? <p className="gp-pill gp-pill-red mt-3 w-full justify-center py-2">{error}</p> : null}
 
-      <section className="mt-4 rounded-lg border border-cyan-300/15 bg-[#07111f]/70 p-3">
+      <section className="gp-card-quiet mt-4 p-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-cyan-100">Management tools</p>
-            <p className="mt-1 text-xs text-neutral-500">Client actions, channel view, and privilege keys.</p>
+            <p className="gp-title">Management tools</p>
+            <p className="mt-1 text-xs text-gp-mute">Client actions, channel view, and privilege keys.</p>
           </div>
         </div>
 
         <div className="mt-3 grid gap-3 2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-          <section className="rounded-lg border border-white/10 bg-neutral-950/35 p-3">
+          <section className="gp-inset p-3">
             <p className="text-sm font-semibold text-white">Online clients</p>
-            <div className="mt-3 max-h-80 space-y-2 overflow-auto">
+            <div className="gp-scroll mt-3 max-h-80 space-y-2 overflow-auto">
               {live?.clients.map((client) => (
                 <div
                   key={client.id}
-                  className="grid gap-3 rounded-md border border-white/10 bg-neutral-900 p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+                  className="grid gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-neutral-100">{client.nickname}</p>
-                    <p className="mt-1 text-xs text-neutral-500">Database ID {client.databaseId}</p>
+                    <p className="mt-1 text-xs text-gp-mute">Database ID {client.databaseId}</p>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-3 md:w-[280px]">
                     <button
                       type="button"
                       onClick={() => runClientAction("poke", client.id)}
-                      className="h-9 rounded-md border border-cyan-300/25 px-3 text-xs font-semibold text-cyan-100 hover:bg-cyan-300/10"
+                      className="gp-btn gp-btn-ghost h-9 px-3 text-xs"
                     >
                       Poke
                     </button>
                     <button
                       type="button"
                       onClick={() => runClientAction("kick", client.id)}
-                      className="h-9 rounded-md border border-amber-400/30 px-3 text-xs font-semibold text-amber-100 hover:bg-amber-400/10"
+                      className="gp-btn gp-btn-warn h-9 px-3 text-xs"
                     >
                       Kick
                     </button>
                     <button
                       type="button"
                       onClick={() => runClientAction("ban", client.id)}
-                      className="h-9 rounded-md border border-red-400/30 px-3 text-xs font-semibold text-red-100 hover:bg-red-400/10"
+                      className="gp-btn gp-btn-danger h-9 px-3 text-xs"
                     >
                       Ban 1h
                     </button>
                   </div>
                 </div>
               ))}
-              {!live ? <p className="text-sm text-neutral-500">Refresh the server to load online clients.</p> : null}
-              {live && live.clients.length === 0 ? <p className="text-sm text-neutral-500">No clients online.</p> : null}
+              {!live ? <p className="text-sm text-gp-mute">Refresh the server to load online clients.</p> : null}
+              {live && live.clients.length === 0 ? <p className="text-sm text-gp-mute">No clients online.</p> : null}
             </div>
           </section>
 
           <div className="grid gap-3">
-            <section className="rounded-lg border border-white/10 bg-neutral-950/35 p-3">
+            <section className="gp-inset p-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-white">Channel viewer</p>
-                <button
-                  type="button"
-                  onClick={loadChannels}
-                  className="h-9 rounded-md border border-white/10 px-3 text-xs font-semibold text-neutral-200 hover:bg-white/5"
-                >
+                <button type="button" onClick={loadChannels} className="gp-btn gp-btn-ghost h-8 px-3 text-xs">
                   Load channels
                 </button>
               </div>
-              <div className="mt-3 max-h-56 space-y-2 overflow-auto">
+              <div className="gp-scroll mt-3 max-h-56 space-y-2 overflow-auto">
                 {channels.map((channel) => (
-                  <div key={channel.id} className="rounded-md border border-white/10 bg-neutral-900 px-3 py-2 text-sm">
+                  <div key={channel.id} className="rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2 text-sm">
                     <p className="truncate font-medium text-neutral-100">{channel.name}</p>
                     {channel.clients.length ? (
-                      <p className="mt-1 truncate text-xs text-neutral-500">
+                      <p className="mt-1 truncate text-xs text-gp-mute">
                         {channel.clients.map((client) => client.nickname).join(", ")}
                       </p>
                     ) : null}
                   </div>
                 ))}
-                {channels.length === 0 ? <p className="text-sm text-neutral-500">No channel data loaded.</p> : null}
+                {channels.length === 0 ? <p className="text-sm text-gp-mute">No channel data loaded.</p> : null}
               </div>
             </section>
 
-            <section className="rounded-lg border border-white/10 bg-neutral-950/35 p-3">
+            <section className="gp-inset p-3">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-white">Privilege keys</p>
-                <button
-                  type="button"
-                  onClick={loadGroups}
-                  className="h-9 rounded-md border border-white/10 px-3 text-xs font-semibold text-neutral-200 hover:bg-white/5"
-                >
+                <button type="button" onClick={loadGroups} className="gp-btn gp-btn-ghost h-8 px-3 text-xs">
                   Load groups
                 </button>
               </div>
               <form onSubmit={createPrivilegeKey} className="mt-3 grid gap-2">
-                <select name="groupId" required className="h-10 min-w-0 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none">
+                <select name="groupId" required className="gp-select">
                   <option value="">Server group</option>
                   {groups.map((group) => (
                     <option key={group.id} value={group.id}>
@@ -2342,12 +2429,10 @@ function TeamSpeakCard({
                   ))}
                 </select>
                 <Input name="description" placeholder="Description" defaultValue="Created from Intuitive Gamepanel" required={false} />
-                <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
-                  Create key
-                </button>
+                <button className="gp-btn gp-btn-primary">Create key</button>
               </form>
               {privilegeKey ? (
-                <p className="mt-3 break-all rounded-md border border-emerald-300/20 bg-emerald-300/10 p-2 font-mono text-xs text-emerald-100">
+                <p className="mt-3 break-all rounded-xl border border-emerald-400/25 bg-emerald-400/10 p-2 font-mono text-xs text-emerald-100">
                   {privilegeKey}
                 </p>
               ) : null}
@@ -2361,13 +2446,11 @@ function TeamSpeakCard({
         <Input name="welcomeMessage" placeholder="Welcome message" defaultValue={live?.info.welcomeMessage ?? ""} required={false} />
         <Input name="maxClients" type="number" placeholder="Max clients" defaultValue={live?.info.maxClients || 32} />
         <Input name="password" type="password" placeholder="Server password optional; leave empty to clear" required={false} />
-        <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
-          Save TeamSpeak settings
-        </button>
+        <button className="gp-btn gp-btn-primary">Save TeamSpeak settings</button>
       </form>
 
       {isAdmin ? (
-        <details className="mt-4 rounded-lg border border-white/10 bg-[#07111f]/70 p-3">
+        <details className="gp-card-quiet mt-4 p-3">
           <summary className="cursor-pointer text-sm font-semibold text-neutral-200">Admin connection settings</summary>
           <form onSubmit={saveAdmin} className="mt-3 grid gap-3">
             <div className="grid gap-3 md:grid-cols-2">
@@ -2382,27 +2465,20 @@ function TeamSpeakCard({
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
               {users.map((user) => (
-                <label key={user.id} className="flex min-h-10 items-center gap-2 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-neutral-200">
+                <label key={user.id} className="gp-check">
                   <input
                     type="checkbox"
                     name="assignedUserIds"
                     value={user.id}
                     defaultChecked={server.assignedUserIds.includes(user.id)}
-                    className="h-4 w-4 accent-cyan-300"
                   />
                   <span className="truncate">{user.name}</span>
                 </label>
               ))}
             </div>
             <div className="flex flex-wrap gap-2">
-              <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
-                Save connection
-              </button>
-              <button
-                type="button"
-                onClick={removeServer}
-                className="flex h-10 items-center gap-2 rounded-md border border-red-400/30 px-4 text-sm font-semibold text-red-200 transition hover:bg-red-400/10"
-              >
+              <button className="gp-btn gp-btn-primary">Save connection</button>
+              <button type="button" onClick={removeServer} className="gp-btn gp-btn-danger">
                 <Trash2 className="h-4 w-4" />
                 Delete
               </button>
@@ -2454,44 +2530,36 @@ function NodesPanel({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+      <section className="gp-card gp-rise p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-white">Machines</p>
-            <p className="text-sm text-neutral-400">Register local or remote Ubuntu machines that can host services.</p>
+          <div className="min-w-0">
+            <p className="gp-title">Machines</p>
+            <p className="mt-1 text-sm text-gp-dim">Register local or remote Ubuntu machines that can host services.</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setOpen((value) => !value)}
-            className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200"
-          >
+          <button type="button" onClick={() => setOpen((value) => !value)} className="gp-btn gp-btn-primary">
             <Plus className="h-4 w-4" />
             Add node
           </button>
         </div>
 
         {open ? (
-          <form onSubmit={submit} className="mt-4 border-t border-white/10 pt-4">
+          <form onSubmit={submit} className="mt-4 border-t border-white/[0.08] pt-4">
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_180px_minmax(0,1fr)]">
               <Input name="name" placeholder="Machine name" />
               <Input name="baseUrl" placeholder="https://node.example.com:8443 or local" />
               <Input name="publicIp" placeholder="Public IP" />
               <Input name="apiToken" placeholder="Agent token" required={false} />
             </div>
-            <label className="mt-3 flex min-h-10 items-center gap-2 text-sm text-neutral-300">
-              <input name="isLocal" type="checkbox" className="h-4 w-4 accent-cyan-300" />
+            <label className="mt-3 flex min-h-10 items-center gap-2 text-sm text-gp-dim">
+              <input name="isLocal" type="checkbox" className="h-4 w-4 accent-blue-500" />
               This is the same machine as the panel
             </label>
             <div className="mt-4 flex flex-wrap gap-2">
-              <button className="flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+              <button className="gp-btn gp-btn-primary">
                 <Plus className="h-4 w-4" />
                 Create node
               </button>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="h-10 rounded-md border border-white/10 px-4 text-sm font-semibold text-neutral-300 transition hover:bg-white/5"
-              >
+              <button type="button" onClick={() => setOpen(false)} className="gp-btn gp-btn-ghost">
                 Cancel
               </button>
             </div>
@@ -2544,15 +2612,13 @@ function NodeEditor({
   }
 
   return (
-    <form onSubmit={submit} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+    <form onSubmit={submit} className="gp-card gp-interactive p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="font-semibold text-white">{node.name}</p>
-          <p className="mt-1 text-sm text-neutral-500">{node.isLocal ? "Local node" : "Remote agent"}</p>
+          <p className="mt-1 text-xs text-gp-mute">{node.isLocal ? "Local node" : "Remote agent"}</p>
         </div>
-        <span className="rounded-md border border-cyan-300/20 bg-cyan-300/10 px-2 py-1 text-xs font-semibold text-cyan-100">
-          {node.publicIp}
-        </span>
+        <span className="gp-pill gp-pill-blue font-mono">{node.publicIp}</span>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <Input name="name" defaultValue={node.name} placeholder="Machine name" />
@@ -2560,19 +2626,17 @@ function NodeEditor({
         <Input name="baseUrl" defaultValue={node.baseUrl} placeholder="Agent URL" />
         <Input name="apiToken" placeholder={node.hasApiToken ? "New token optional" : "Agent token"} required={false} />
       </div>
-      <label className="mt-3 flex min-h-10 items-center gap-2 text-sm text-neutral-300">
-        <input name="isLocal" type="checkbox" defaultChecked={node.isLocal} className="h-4 w-4 accent-cyan-300" />
+      <label className="mt-3 flex min-h-10 items-center gap-2 text-sm text-gp-dim">
+        <input name="isLocal" type="checkbox" defaultChecked={node.isLocal} className="h-4 w-4 accent-blue-500" />
         This is the same machine as the panel
       </label>
       <div className="mt-4 flex flex-wrap gap-2">
-        <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
-          Save
-        </button>
+        <button className="gp-btn gp-btn-primary">Save</button>
         <button
           type="button"
           onClick={removeNode}
           disabled={node.id === "local"}
-          className="flex h-10 items-center gap-2 rounded-md border border-red-400/30 px-4 text-sm font-semibold text-red-200 transition hover:bg-red-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+          className="gp-btn gp-btn-danger"
         >
           <Trash2 className="h-4 w-4" />
           Delete
@@ -2644,31 +2708,27 @@ function UserForm({
   }
 
   return (
-    <section className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+    <section className="gp-card gp-rise p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-white">Users</p>
-          <p className="text-sm text-neutral-400">Create panel accounts, optional SFTP access, and server assignments.</p>
+        <div className="min-w-0">
+          <p className="gp-title">Users</p>
+          <p className="mt-1 text-sm text-gp-dim">Create panel accounts, optional SFTP access, and server assignments.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          className="flex h-11 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200"
-        >
+        <button type="button" onClick={() => setOpen((value) => !value)} className="gp-btn gp-btn-primary">
           <Plus className="h-4 w-4" />
           Add user
         </button>
       </div>
 
       {open ? (
-        <form onSubmit={submit} className="mt-4 space-y-5 border-t border-white/10 pt-4">
+        <form onSubmit={submit} className="mt-4 space-y-5 border-t border-white/[0.08] pt-4">
           <section>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-500">Panel account</p>
+            <p className="gp-eyebrow mb-3">Panel account</p>
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(180px,.7fr)_140px]">
               <Input name="name" placeholder="Name" />
               <Input name="email" type="email" placeholder="Email" />
               <Input name="password" type="password" placeholder="Password" />
-              <select name="role" className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none">
+              <select name="role" className="gp-select">
                 <option value="USER">User</option>
                 <option value="STARTUP_USER">Startup user</option>
                 <option value="ADMIN">Admin</option>
@@ -2676,18 +2736,18 @@ function UserForm({
             </div>
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-[#07111f]/70 p-3">
+          <section className="gp-inset p-3">
             <label className="flex min-h-11 items-center gap-3 text-sm text-neutral-200">
               <input
                 type="checkbox"
                 name="createSftpUser"
                 checked={createSftpUser}
                 onChange={(event) => setCreateSftpUser(event.target.checked)}
-                className="h-4 w-4 accent-cyan-300"
+                className="h-4 w-4 accent-blue-500"
               />
               <span>
                 <span className="block font-semibold text-white">Create jailed SFTP user</span>
-                <span className="text-neutral-500">Creates a Linux SFTP login under /opt/game-servers/username.</span>
+                <span className="text-gp-mute">Creates a Linux SFTP login under /opt/game-servers/username.</span>
               </span>
             </label>
             {createSftpUser ? (
@@ -2702,15 +2762,11 @@ function UserForm({
           <TeamSpeakCheckboxes servers={teamspeakServers} selected={[]} />
 
           <div className="flex flex-wrap gap-2">
-            <button className="flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
+            <button className="gp-btn gp-btn-primary">
               <Plus className="h-4 w-4" />
               Create user
             </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="h-10 rounded-md border border-white/10 px-4 text-sm font-semibold text-neutral-300 transition hover:bg-white/5"
-            >
+            <button type="button" onClick={() => setOpen(false)} className="gp-btn gp-btn-ghost">
               Cancel
             </button>
           </div>
@@ -2752,13 +2808,13 @@ function UserEditor({
   }
 
   return (
-    <form onSubmit={submit} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+    <form onSubmit={submit} className="gp-card gp-interactive p-4 sm:p-5">
       <div className="grid gap-3 md:grid-cols-2">
         <Input name="name" defaultValue={user.name} placeholder="Name" />
         <Input name="email" type="email" defaultValue={user.email} placeholder="Email" />
         <Input name="password" type="password" placeholder="New password optional" required={false} />
         <Input name="sftpUsername" defaultValue={user.sftpUsername ?? ""} placeholder="SFTP username / folder" required={false} />
-        <select name="role" defaultValue={user.role} className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none">
+        <select name="role" defaultValue={user.role} className="gp-select">
           <option value="USER">User</option>
           <option value="STARTUP_USER">Startup user</option>
           <option value="ADMIN">Admin</option>
@@ -2767,14 +2823,8 @@ function UserEditor({
       <ServerCheckboxes servers={servers} selected={user.serverIds} />
       <TeamSpeakCheckboxes servers={teamspeakServers} selected={user.teamspeakIds} />
       <div className="mt-4 flex flex-wrap gap-2">
-        <button className="h-10 rounded-md bg-cyan-300 px-4 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200">
-          Save
-        </button>
-        <button
-          type="button"
-          onClick={removeUser}
-          className="flex h-10 items-center gap-2 rounded-md border border-red-400/30 px-4 text-sm font-semibold text-red-200 transition hover:bg-red-400/10"
-        >
+        <button className="gp-btn gp-btn-primary">Save</button>
+        <button type="button" onClick={removeUser} className="gp-btn gp-btn-danger">
           <Trash2 className="h-4 w-4" />
           Delete
         </button>
@@ -2787,33 +2837,29 @@ function ServerCheckboxes({ servers, selected }: { servers: GameServerDto[]; sel
   const groupedServers = groupServersByGame(servers);
 
   return (
-    <div className="mt-4 rounded-lg border border-white/10 bg-[#07111f]/70">
-      <div className="border-b border-white/10 px-3 py-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Server access</p>
-        <p className="mt-1 text-sm text-neutral-400">Assign only the servers this user should control.</p>
+    <div className="gp-inset mt-4 overflow-hidden">
+      <div className="border-b border-white/[0.07] px-3 py-2.5">
+        <p className="gp-eyebrow">Server access</p>
+        <p className="mt-1 text-xs text-gp-dim">Assign only the servers this user should control.</p>
       </div>
-      <div className="divide-y divide-white/10">
+      <div className="divide-y divide-white/[0.05]">
         {groupedServers.map((group) => (
           <details key={group.gameKey} className="group/server-access">
-            <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-3 text-sm text-neutral-200 transition hover:bg-white/[0.035]">
+            <summary className="flex list-none cursor-pointer items-center justify-between gap-3 px-3 py-3 text-sm text-neutral-200 transition hover:bg-white/[0.03] [&::-webkit-details-marker]:hidden">
               <span className="flex min-w-0 items-center gap-2">
-                <ChevronDown className="h-4 w-4 shrink-0 text-neutral-500 transition group-open/server-access:rotate-180" />
+                <ChevronDown className="h-4 w-4 shrink-0 text-gp-mute transition group-open/server-access:rotate-180" />
                 <span className="truncate font-semibold text-white">{group.label}</span>
               </span>
-              <span className="shrink-0 text-xs text-neutral-500">{group.servers.length}</span>
+              <span className="shrink-0 text-xs text-gp-mute">{group.servers.length}</span>
             </summary>
             <div className="grid gap-2 px-3 pb-3 sm:grid-cols-2 xl:grid-cols-3">
               {group.servers.map((server) => (
-                <label
-                  key={server.id}
-                  className="flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-neutral-200"
-                >
+                <label key={server.id} className="gp-check">
                   <input
                     type="checkbox"
                     name="serverIds"
                     value={server.id}
                     defaultChecked={selected.includes(server.id)}
-                    className="h-4 w-4 accent-cyan-300"
                   />
                   <span className="truncate">{server.name}</span>
                 </label>
@@ -2832,23 +2878,19 @@ function TeamSpeakCheckboxes({ servers, selected }: { servers: TeamSpeakServerDt
   }
 
   return (
-    <div className="mt-4 rounded-lg border border-white/10 bg-[#07111f]/70">
-      <div className="border-b border-white/10 px-3 py-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">TeamSpeak access</p>
-        <p className="mt-1 text-sm text-neutral-400">Assign the TeamSpeak servers this user may manage.</p>
+    <div className="gp-inset mt-4 overflow-hidden">
+      <div className="border-b border-white/[0.07] px-3 py-2.5">
+        <p className="gp-eyebrow">TeamSpeak access</p>
+        <p className="mt-1 text-xs text-gp-dim">Assign the TeamSpeak servers this user may manage.</p>
       </div>
       <div className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3">
         {servers.map((server) => (
-          <label
-            key={server.id}
-            className="flex min-h-11 items-center gap-2 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-neutral-200"
-          >
+          <label key={server.id} className="gp-check">
             <input
               type="checkbox"
               name="teamspeakIds"
               value={server.id}
               defaultChecked={selected.includes(server.id)}
-              className="h-4 w-4 accent-cyan-300"
             />
             <span className="truncate">{server.name}</span>
           </label>
@@ -2863,7 +2905,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
     <input
       required
       {...props}
-      className="h-11 rounded-md border border-white/10 bg-neutral-900 px-3 text-sm text-white outline-none ring-cyan-400/20 transition placeholder:text-neutral-500 focus:border-cyan-300 focus:ring-4"
+      className="gp-input"
     />
   );
 }

@@ -2,7 +2,8 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, Lock, Server, Shield } from "lucide-react";
+import { Activity, ArrowRight, Loader2, Lock, Mail, Server } from "lucide-react";
+import { BrandLogo } from "./brand-logo";
 
 export function LoginForm() {
   const router = useRouter();
@@ -36,93 +37,131 @@ export function LoginForm() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#111827] px-4 py-10 text-neutral-100">
-      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(135deg,#162033_0%,#0a1020_48%,#061b22_100%)]" />
-      <div className="pointer-events-none fixed inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.035)_1px,transparent_1px)] [background-size:72px_72px]" />
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12 text-gp-ink">
+      <div className="gp-ambient" />
+      <div className="gp-grid-overlay" />
 
-      <section className="relative grid w-full max-w-5xl overflow-hidden rounded-lg border border-white/10 bg-white/[0.06] shadow-2xl shadow-black/30 backdrop-blur-xl lg:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="hidden bg-[linear-gradient(135deg,rgba(14,165,233,.34),rgba(30,64,175,.2)_45%,rgba(15,23,42,.16))] p-8 lg:block">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-cyan-300 text-neutral-950">
-              <Shield className="h-5 w-5" />
+      <section className="gp-rise relative grid w-full max-w-5xl overflow-hidden rounded-[26px] border border-white/[0.08] bg-white/[0.03] shadow-[0_50px_120px_-50px_rgba(0,0,0,1)] backdrop-blur-2xl lg:grid-cols-[minmax(0,1fr)_430px]">
+        {/* Brand panel */}
+        <div className="relative hidden flex-col justify-between overflow-hidden p-9 lg:flex">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-90"
+            style={{
+              background:
+                "radial-gradient(620px 420px at 12% 4%, rgba(59,130,246,.34), transparent 62%), radial-gradient(520px 380px at 88% 96%, rgba(251,146,60,.16), transparent 64%)",
+            }}
+          />
+
+          <div className="relative">
+            <div className="flex items-center gap-3">
+              <BrandLogo size="lg" />
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200/80">
+                  Intuitive
+                </p>
+                <p className="text-lg font-semibold tracking-tight text-white">Gamepanel</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-cyan-100">Intuitive</p>
-              <p className="text-lg font-semibold text-white">Gamepanel</p>
+
+            <div className="mt-14">
+              <p className="text-sm font-medium text-blue-200">Secure operations</p>
+              <h1 className="mt-3 max-w-md text-[2.6rem] font-semibold leading-[1.08] tracking-tight text-white">
+                Manage game and voice servers from one command center.
+              </h1>
+              <p className="mt-5 max-w-md text-sm leading-6 text-gp-dim">
+                Control systemd services, assign users, and keep startup settings organized
+                without exposing raw shell commands.
+              </p>
             </div>
           </div>
 
-          <div className="mt-16">
-            <p className="text-sm font-medium text-cyan-100">Secure operations</p>
-            <h1 className="mt-2 max-w-lg text-4xl font-semibold tracking-tight text-white">
-              Manage game and voice servers from one command center.
-            </h1>
-            <p className="mt-4 max-w-xl text-sm leading-6 text-slate-200">
-              Control systemd services, assign users, and keep startup settings organized without exposing raw shell commands.
-            </p>
-          </div>
-
-          <div className="mt-12 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4 text-cyan-100">
-              <Server className="h-5 w-5" />
-              <p className="mt-4 text-sm font-semibold">Server control</p>
+          <div className="relative mt-12 grid gap-3 sm:grid-cols-2">
+            <div className="gp-card-quiet flex items-center gap-3 p-4">
+              <span className="gp-icon-tile gp-icon-tile-blue">
+                <Server className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white">Server control</p>
+                <p className="truncate text-xs text-gp-mute">systemd units, live state</p>
+              </div>
             </div>
-            <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-4 text-emerald-100">
-              <Activity className="h-5 w-5" />
-              <p className="mt-4 text-sm font-semibold">Live status</p>
+            <div className="gp-card-quiet flex items-center gap-3 p-4">
+              <span className="gp-icon-tile gp-icon-tile-emerald">
+                <Activity className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white">Live status</p>
+                <p className="truncate text-xs text-gp-mute">players, logs, RCON</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="p-6 sm:p-8">
+        {/* Form panel */}
+        <div className="relative border-t border-white/[0.08] bg-[#070b14]/70 p-6 backdrop-blur-xl sm:p-9 lg:border-l lg:border-t-0">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-cyan-300 text-neutral-950">
-              <Shield className="h-5 w-5" />
-            </div>
+            <BrandLogo size="md" />
             <div>
-              <p className="text-sm font-medium text-cyan-200">Intuitive</p>
-              <h1 className="text-2xl font-semibold tracking-tight text-white">Gamepanel</h1>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200/80">
+                Intuitive
+              </p>
+              <h1 className="text-xl font-semibold tracking-tight text-white">Gamepanel</h1>
             </div>
           </div>
-          <div className="mb-8">
-            <p className="text-sm font-medium text-cyan-200">Welcome back</p>
+
+          <div className="mb-7">
+            <p className="text-sm font-medium text-blue-200">Welcome back</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">Sign in</h2>
-            <p className="mt-2 text-sm text-neutral-400">Use your panel account to continue.</p>
+            <p className="mt-2 text-sm text-gp-dim">Use your panel account to continue.</p>
           </div>
 
           <form className="space-y-4" onSubmit={handleSubmit}>
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-neutral-300">Email</span>
-              <input
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-                className="h-12 w-full rounded-md border border-white/10 bg-neutral-900 px-3 text-white outline-none ring-cyan-400/30 transition focus:border-cyan-300 focus:ring-4"
-              />
+              <span className="gp-eyebrow mb-2 block">Email</span>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gp-mute" />
+                <input
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  className="gp-input pl-10"
+                />
+              </div>
             </label>
+
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-neutral-300">Password</span>
-              <input
-                name="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                className="h-12 w-full rounded-md border border-white/10 bg-neutral-900 px-3 text-white outline-none ring-cyan-400/30 transition focus:border-cyan-300 focus:ring-4"
-              />
+              <span className="gp-eyebrow mb-2 block">Password</span>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gp-mute" />
+                <input
+                  name="password"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  className="gp-input pl-10"
+                />
+              </div>
             </label>
 
-            {error ? <p className="text-sm text-red-300">{error}</p> : null}
+            {error ? (
+              <p className="gp-pill gp-pill-red w-full justify-center px-3 py-2 text-xs">{error}</p>
+            ) : null}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-md bg-cyan-300 px-4 font-semibold text-neutral-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Lock className="h-4 w-4" />
+            <button type="submit" disabled={loading} className="gp-btn gp-btn-primary w-full">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
               {loading ? "Signing in..." : "Sign in"}
+              {loading ? null : <ArrowRight className="h-4 w-4" />}
             </button>
           </form>
+
+          <div className="gp-divider mt-7" />
+
+          <p className="mt-5 text-center text-xs text-gp-mute">
+            Access is limited to accounts provisioned by a panel administrator.
+          </p>
         </div>
       </section>
     </main>
