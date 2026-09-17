@@ -42,3 +42,9 @@ next-env.d.ts
 
 # local agent tooling / notes (probe harness, screenshots, memory)
 /.workbuddy-ai/
+
+# SQLite database - RUNTIME DATA, never commit it.
+# On the deploy target this file IS the production database, so shipping a
+# local copy overwrites live users/servers/access grants on the next pull.
+/prisma/dev.db
+/prisma/dev.db-journal
