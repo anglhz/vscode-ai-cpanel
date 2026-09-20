@@ -16,6 +16,8 @@ model User {
   sftpUsername String?            @unique
   serverAccess UserServerAccess[]
   teamspeakAccess UserTeamSpeakAccess[]
+  alertChannels AlertChannel[]
+  alertSubscriptions AlertSubscription[]
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 }
@@ -50,8 +52,111 @@ model GameServer {
   lastDownAlertAt    DateTime?
   displayOrder       Int                @default(0)
   assignedUsers      UserServerAccess[]
+  incidents          Incident[]
+  subscriptions      AlertSubscriptionServer[]
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
+}
+
+/// One row per contiguous period during which a server was unexpectedly down.
+/// The unit of alerting: subscribers are notified about incidents, not raw status.
+model Incident {
+  id               String      @id @default(cuid())
+  serverId         String
+  server           GameServer  @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  /// DOWN = unexpected offline. FLAPPING = offline again within the flap window.
+  kind             String      @default("DOWN")
+  startedAt        DateTime    @default(now())
+  resolvedAt       DateTime?
+  /// Downtime in seconds, denormalised at resolution time for cheap reporting.
+  durationSeconds  Int?
+  /// Suppressed while the server keeps bouncing; see FLAP_WINDOW_MS in server-alerts.ts.
+  alertCount       Int         @default(0)
+  lastAlertAt      DateTime?
+  acknowledgedAt   DateTime?
+  acknowledgedById String?
+  /// Free-text reason recorded when the incident closes (recovered / manually stopped).
+  resolution       String?
+  deliveries       AlertDelivery[]
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([serverId, resolvedAt])
+  @@index([resolvedAt, startedAt])
+}
+
+/// A destination that belongs to a single user. Today that is always a personal
+/// Discord webhook URL. `destination` is AES-256-GCM encrypted at rest.
+model AlertChannel {
+  id           String              @id @default(cuid())
+  userId       String
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String              @default("DISCORD_WEBHOOK")
+  label        String              @default("Discord")
+  /// Encrypted webhook URL. Never sent to the client.
+  destination  String
+  /// Short non-secret tail of the webhook id, for showing "which one is this" in the UI.
+  hint         String              @default("")
+  verifiedAt   DateTime?
+  lastError    String?
+  lastErrorAt  DateTime?
+  subscriptions AlertSubscription[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([userId])
+}
+
+/// A user's alert preferences. `scope` is ALL (every server they can see) or SPECIFIC.
+model AlertSubscription {
+  id               String                    @id @default(cuid())
+  userId           String
+  user             User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channelId        String
+  channel          AlertChannel              @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  scope            String                    @default("ALL")
+  /// Do not alert until the server has been down at least this long.
+  minDowntimeSeconds Int                     @default(0)
+  /// Re-notify every N minutes while the incident stays open. 0 = never repeat.
+  repeatMinutes    Int                       @default(60)
+  notifyOnRecovery Boolean                   @default(true)
+  enabled          Boolean                   @default(true)
+  servers          AlertSubscriptionServer[]
+  deliveries       AlertDelivery[]
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@index([userId])
+  @@index([channelId])
+  @@index([enabled])
+}
+
+model AlertSubscriptionServer {
+  subscriptionId String
+  subscription   AlertSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  serverId       String
+  server         GameServer        @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@id([subscriptionId, serverId])
+  @@index([serverId])
+}
+
+/// Audit trail and the per-recipient throttle key. One row per message actually sent.
+model AlertDelivery {
+  id             String   @id @default(cuid())
+  incidentId     String
+  incident       Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  subscriptionId String
+  subscription   AlertSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  channelId      String
+  /// DOWN / RECOVERY / REPEAT / TEST
+  kind           String
+  sentAt         DateTime @default(now())
+  ok             Boolean  @default(true)
+  error          String?
+
+  @@index([incidentId, subscriptionId])
+  @@index([sentAt])
 }
 
 model UserServerAccess {

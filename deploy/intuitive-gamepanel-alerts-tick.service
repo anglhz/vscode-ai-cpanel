@@ -1,0 +1,42 @@
+[Unit]
+Description=Intuitive Gamepanel - downtime alert monitor (one pass)
+Documentation=https://github.com/anglhz/vscode-ai-cpanel
+After=network-online.target
+Wants=network-online.target
+
+# Do not let systemd throttle us if a tick fails — the timer fires every minute regardless.
+# This is a [Unit] setting, not a [Service] one; systemd ignores it in [Service].
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+
+# Same user and working directory as intuitive-gamepanel.service, so `.env`, the Prisma
+# client and DATABASE_URL all resolve identically to the running panel.
+User=gamepanel
+Group=gamepanel
+WorkingDirectory=/home/intuitive-gaming-gcp/htdocs/gcp.intuitive-gaming.com
+
+# `npm run monitor:alerts` is `tsx scripts/monitor-alerts.ts`; it loads .env itself via
+# @next/env, so no EnvironmentFile= is needed.
+#
+# No sudo here: User= already runs this as gamepanel. The earlier version of this file
+# wrapped ExecStart in `sudo -H -u gamepanel`, which would have failed outright.
+#
+# HOME is set explicitly. systemd does NOT derive it from User=, and without it npm
+# writes .cache/ .config/ and .npm/ into the repository root — the exact leak that
+# happened during the 2026-09-17 deploy.
+Environment=HOME=/home/gamepanel
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm run monitor:alerts
+
+# The panel holds the SQLite database; a tick that cannot read it should fail loudly
+# rather than half-run.
+TimeoutStartSec=120
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=intuitive-gamepanel-alerts
+
+[Install]
+WantedBy=multi-user.target

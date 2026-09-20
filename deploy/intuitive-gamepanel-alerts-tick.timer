@@ -1,0 +1,16 @@
+[Unit]
+Description=Intuitive Gamepanel - run the downtime alert monitor every minute
+Documentation=https://github.com/anglhz/vscode-ai-cpanel
+
+[Timer]
+# First tick 30s after boot, then every minute.
+OnBootSec=30s
+OnUnitActiveSec=1min
+# systemd versions before 245 call this OnBootSec; the timer is a simple monotonic one.
+AccuracySec=5s
+# If the panel host was suspended, do not try to catch up on missed ticks.
+Persistent=false
+Unit=intuitive-gamepanel-alerts-tick.service
+
+[Install]
+WantedBy=timers.target

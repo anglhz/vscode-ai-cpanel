@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Activity,
+  BellRing,
   ChevronsLeft,
   ChevronsRight,
   ChevronDown,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { BrandLogo } from "./brand-logo";
+import { NotificationsPanel } from "./notifications-panel";
 import type { SessionUser } from "@/lib/auth";
 
 type Role = "ADMIN" | "USER" | "STARTUP_USER";
@@ -163,7 +165,7 @@ const SERVER_GAME_LABELS: Record<string, string> = Object.fromEntries(
 );
 
 export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
-  const [view, setView] = useState<"servers" | "teamspeak" | "users" | "nodes">("servers");
+  const [view, setView] = useState<"servers" | "teamspeak" | "alerts" | "users" | "nodes">("servers");
   const [servers, setServers] = useState<GameServerDto[]>([]);
   const [teamspeakServers, setTeamspeakServers] = useState<TeamSpeakServerDto[]>([]);
   const [users, setUsers] = useState<UserDto[]>([]);
@@ -331,6 +333,9 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
           <NavButton active={view === "teamspeak"} onClick={() => setView("teamspeak")} icon={Activity} collapsed={sidebarCollapsed}>
             TeamSpeak
           </NavButton>
+          <NavButton active={view === "alerts"} onClick={() => setView("alerts")} icon={BellRing} collapsed={sidebarCollapsed}>
+            Alerts
+          </NavButton>
           {isAdmin ? (
             <NavButton active={view === "users"} onClick={() => setView("users")} icon={Users} collapsed={sidebarCollapsed}>
               Users
@@ -401,7 +406,7 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
                   <Greeting name={currentUser.name} />
                 </p>
                 <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight text-white sm:text-[1.7rem]">
-                  {view === "users" ? "User Access" : view === "nodes" ? "Server Nodes" : view === "teamspeak" ? "TeamSpeak" : "Server Control"}
+                  {view === "users" ? "User Access" : view === "nodes" ? "Server Nodes" : view === "teamspeak" ? "TeamSpeak" : view === "alerts" ? "Downtime Alerts" : "Server Control"}
                 </h1>
               </div>
             </div>
@@ -437,6 +442,8 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
               reload={loadData}
               setMessage={setMessage}
             />
+          ) : view === "alerts" ? (
+            <NotificationsPanel isAdmin={isAdmin} setMessage={setMessage} />
           ) : view === "nodes" && isAdmin ? (
             <NodesPanel nodes={nodes} reload={loadData} setMessage={setMessage} />
           ) : view === "users" && isAdmin ? (
@@ -456,12 +463,15 @@ export function DashboardShell({ currentUser }: { currentUser: SessionUser }) {
         </section>
       </main>
 
-      <nav className="fixed bottom-3 left-3 right-3 z-30 grid grid-cols-4 gap-1 rounded-[22px] border border-white/[0.08] bg-[#070b14]/95 p-1.5 shadow-[0_26px_60px_-28px_rgba(0,0,0,1)] backdrop-blur-xl lg:hidden">
+      <nav className="fixed bottom-3 left-3 right-3 z-30 grid grid-cols-5 gap-1 rounded-[22px] border border-white/[0.08] bg-[#070b14]/95 p-1.5 shadow-[0_26px_60px_-28px_rgba(0,0,0,1)] backdrop-blur-xl lg:hidden">
         <MobileButton active={view === "servers"} onClick={() => setView("servers")} icon={LayoutDashboard}>
           Servers
         </MobileButton>
         <MobileButton active={view === "teamspeak"} onClick={() => setView("teamspeak")} icon={Activity}>
           TS3
+        </MobileButton>
+        <MobileButton active={view === "alerts"} onClick={() => setView("alerts")} icon={BellRing}>
+          Alerts
         </MobileButton>
         {isAdmin ? (
           <MobileButton active={view === "users"} onClick={() => setView("users")} icon={Users}>
