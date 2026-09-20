@@ -180,6 +180,12 @@ export function NotificationsPanel({
   const hasWebhook = Boolean(data?.channel?.hasWebhook);
   const activeSubscriptions = data?.subscription;
 
+  // The save button must be reachable before a webhook exists, otherwise the first-time
+  // setup deadlocks: saving is what stores the webhook, but the button was gated on a
+  // stored webhook. Enabled when there is either something new to save, or an existing
+  // webhook to update settings against.
+  const canSave = hasWebhook || webhookUrl.trim().length > 0;
+
   // A subscription is live only when there is a webhook, it is enabled, and it targets
   // something real. Surface this explicitly — silence is the worst failure mode here.
   const isLive = useMemo(() => {
@@ -480,15 +486,15 @@ export function NotificationsPanel({
                 <button
                   type="button"
                   onClick={save}
-                  disabled={saving || !hasWebhook}
+                  disabled={saving || !canSave}
                   className="gp-btn gp-btn-primary mt-5 w-full"
                 >
                   {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  Save alert settings
+                  {hasWebhook ? "Save alert settings" : "Connect Discord webhook"}
                 </button>
-                {!hasWebhook ? (
+                {!canSave ? (
                   <p className="mt-2 text-center text-xs text-gp-mute">
-                    Add a webhook URL first.
+                    Paste your Discord webhook URL above to continue.
                   </p>
                 ) : null}
               </section>
