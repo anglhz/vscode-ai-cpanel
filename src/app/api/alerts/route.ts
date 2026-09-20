@@ -48,6 +48,30 @@ async function visibleServers(userId: string, role: string) {
 }
 
 export async function GET() {
+  try {
+    return await buildAlertPayload();
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : "Unknown error";
+
+    // A missing table is by far the most common cause here (migration not applied).
+    // Say so explicitly rather than returning an empty 500, which the browser reports
+    // as "Unexpected end of JSON input" and hides the real problem.
+    if (/no such table/i.test(message)) {
+      console.error("[alerts] schema missing — has the migration been applied?", message);
+
+      return NextResponse.json(
+        { error: "Alert tables are missing. Run `npx prisma migrate deploy` on the server." },
+        { status: 503 },
+      );
+    }
+
+    console.error("[alerts] GET failed:", cause);
+
+    return NextResponse.json({ error: `Could not load alert settings: ${message}` }, { status: 500 });
+  }
+}
+
+async function buildAlertPayload() {
   const user = await requireUser();
 
   const [channel, subscription, servers] = await Promise.all([
