@@ -81,3 +81,36 @@ sudo systemctl disable --now intuitive-gamepanel-alerts.service
   `AlertSubscription` and `AlertDelivery`. Run the migration before enabling the timer, or
   every tick dies on a missing table.
 
+## Deploy sequence
+
+Order matters. Each step below has bitten us at least once.
+
+```bash
+sudo -H -u gamepanel bash -lc 'cd /home/intuitive-gaming-gcp/htdocs/gcp.intuitive-gaming.com && git pull --ff-only'
+```
+
+```bash
+sudo -H -u gamepanel bash -lc 'cd /home/intuitive-gaming-gcp/htdocs/gcp.intuitive-gaming.com && npx prisma migrate deploy'
+```
+
+```bash
+sudo -H -u gamepanel bash -lc 'cd /home/intuitive-gaming-gcp/htdocs/gcp.intuitive-gaming.com && npx prisma generate'
+```
+
+```bash
+sudo -H -u gamepanel bash -lc 'cd /home/intuitive-gaming-gcp/htdocs/gcp.intuitive-gaming.com && npm run build'
+```
+
+```bash
+sudo systemctl restart intuitive-gamepanel.service
+```
+
+| Step | Why it is not optional |
+|---|---|
+| `prisma migrate deploy` | Updates the **database**. Without it the new tables do not exist. |
+| `prisma generate` | Updates the **TypeScript client** in `node_modules/@prisma/client`. That directory is not in git, so `git pull` never touches it. Skip this and the build fails with `Property 'x' does not exist on type 'PrismaClient'`. |
+| `systemctl restart` | The running process keeps serving the previous bundle. Skip this and the UI silently shows the old version — new nav items simply will not appear. |
+
+After restarting, hard-refresh the browser (`Ctrl+Shift+R`) to drop the cached JS bundle.
+
+
