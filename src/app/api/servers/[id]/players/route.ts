@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { queryGameServerPlayers } from "@/lib/game-query";
 import { prisma } from "@/lib/prisma";
 import { canAccessServer } from "@/lib/rbac";
-import { queryTeamSpeakPlayers } from "@/lib/teamspeak-query";
+import { TeamSpeakQueryError, queryTeamSpeakPlayers } from "@/lib/teamspeak-query";
 
 function getPublicIp(node?: { publicIp: string } | null) {
   return node?.publicIp || process.env.SERVER_PUBLIC_IP || process.env.NEXT_PUBLIC_SERVER_PUBLIC_IP || "144.76.41.252";
@@ -69,8 +69,25 @@ export async function GET(_: Request, context: { params: Promise<{ id: string }>
       : await queryGameServerPlayers(getPublicIp(server.node), Number(port));
     return NextResponse.json(players);
   } catch (error) {
+    if (error instanceof TeamSpeakQueryError) {
+      console.error("TeamSpeak player query failed", {
+        serverId: id,
+        serviceName: server.systemdServiceName,
+        message: error.message,
+        ...error.context,
+      });
+    } else {
+      console.error("Server player query failed", {
+        serverId: id,
+        serviceName: server.systemdServiceName,
+        error: error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+      });
+    }
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not load player data." },
+      { error: "Could not load player data." },
       { status: 502 },
     );
   }
